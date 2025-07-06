@@ -412,14 +412,11 @@ Check the `examples/` directory for:
 
 ## 📄 License
 
-[Your License Here]
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/lfnovo/podcast-creator/blob/main/LICENSE) file for details.
 
 ## 🔗 Links
 
-- **Documentation**: [Link to docs]
-- **Issues**: [GitHub Issues]
-- **Discussions**: [GitHub Discussions]
-- **Examples**: [Examples Directory]
+- **Examples**: [Examples](https://github.com/lfnovo/podcast-creator/tree/main/examples)
 
 ---
 
