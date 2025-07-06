@@ -1,0 +1,88 @@
+{
+  "profiles": {
+    "ai_researchers": {
+      "tts_provider": "elevenlabs",
+      "tts_model": "eleven_flash_v2_5",
+      "speakers": [
+        {
+          "name": "Dr. Sarah Chen",
+          "voice_id": "wbZYPUM3zIb4exd1P7a0",
+          "backstory": "AI researcher with 15 years experience in machine learning and neural networks. Currently leads the AI Safety Initiative at Stanford University.",
+          "personality": "Analytical, methodical, asks probing questions about technical details and safety implications"
+        },
+        {
+          "name": "Marcus Rivera",
+          "voice_id": "CwhRBWXzGAHq8TQ4Fs17",
+          "backstory": "Tech journalist and podcast host who specializes in making complex AI topics accessible to general audiences.",
+          "personality": "Engaging, curious, excellent at explaining complex concepts in simple terms and connecting with audiences"
+        }
+      ]
+    },
+    "business_analysts": {
+      "tts_provider": "elevenlabs",
+      "tts_model": "eleven_flash_v2_5",
+      "speakers": [
+        {
+          "name": "Alexandra Hayes",
+          "voice_id": "pNInz6obpgDQGcFmaJgB",
+          "backstory": "Senior business analyst with MBA from Wharton. Specializes in technology market analysis and strategic consulting.",
+          "personality": "Strategic thinker, data-driven, focuses on practical business implications and market trends"
+        },
+        {
+          "name": "David Kim",
+          "voice_id": "EXAVITQu4vr4xnSDxMaL",
+          "backstory": "Former startup founder turned venture capitalist. Has invested in 50+ technology companies over the past decade.",
+          "personality": "Pragmatic, entrepreneurial, excellent at identifying opportunities and potential challenges"
+        },
+        {
+          "name": "Lisa Thompson",
+          "voice_id": "ThT5KcBeYPX3keUQqHPh",
+          "backstory": "Chief Technology Officer with 20 years in enterprise software. Expert in technology adoption and digital transformation.",
+          "personality": "Implementation-focused, practical, bridges the gap between technical possibilities and business realities"
+        }
+      ]
+    },
+    "solo_expert": {
+      "tts_provider": "openai",
+      "tts_model": "gpt-4o-mini-tts",
+      "speakers": [
+        {
+          "name": "Professor Feynman",
+          "voice_id": "nova",
+          "backstory": "Distinguished professor, loves to learn and has a passion for teaching. Has a knack for making complex topics accessible.",
+          "personality": "Approachable, excellent teacher who can break down complex topics into digestible segments"
+        }
+      ]
+    },
+    "diverse_panel": {
+      "tts_provider": "elevenlabs",
+      "tts_model": "eleven_flash_v2_5",
+      "speakers": [
+        {
+          "name": "Jessica Parker",
+          "voice_id": "ZT9u07TYPVl83ejeLakq",
+          "backstory": "A tech journalist, known for her bold and provocative questions.",
+          "personality": "Smart, deep and sharp questions"
+        },
+        {
+          "name": "Carlos Rodriguez",
+          "voice_id": "6A8alqLCZSCQWNLn5JP0",
+          "backstory": "Successful Silicon Valley serial-entrepreneur",
+          "personality": "He is an optimist and believes in the power of tech to transform the world"
+        },
+        {
+          "name": "Maya Patel",
+          "voice_id": "lUCNYQh2kqW2wiie85Qk",
+          "backstory": "Sociology researcher and expert in the human/machine symbiosis",
+          "personality": "She is a skeptic and questions the impact of technology on society"
+        },
+        {
+          "name": "Natasha",
+          "voice_id": "PB6BdkFkZLbI39GHdnbQ",
+          "backstory": "TV celebrity, likes to stir the pot and take people by surprise.",
+          "personality": "Provocative, unexpected questions"
+        }
+      ]
+    }
+  }
+}
