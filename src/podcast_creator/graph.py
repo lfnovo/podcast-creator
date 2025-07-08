@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from langgraph.graph import END, START, StateGraph
 from loguru import logger
@@ -13,6 +13,7 @@ from .nodes import (
     route_audio_generation,
 )
 from .speakers import load_speaker_config
+from .episodes import load_episode_config
 from .state import PodcastState
 
 logger.info("Creating podcast generation graph")
@@ -40,34 +41,80 @@ graph = workflow.compile()
 
 async def create_podcast(
     content: str,
-    briefing: str,
-    episode_name: str,
-    output_dir: str,
-    speaker_config: str,
-    outline_provider: str = "openai",
-    outline_model: str = "gpt-4o-mini",
-    transcript_provider: str = "anthropic",
-    transcript_model: str = "claude-3-5-sonnet-latest",
-    num_segments: int = 3,
+    briefing: Optional[str] = None,
+    episode_name: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    speaker_config: Optional[str] = None,
+    outline_provider: Optional[str] = None,
+    outline_model: Optional[str] = None,
+    transcript_provider: Optional[str] = None,
+    transcript_model: Optional[str] = None,
+    num_segments: Optional[int] = None,
+    episode_profile: Optional[str] = None,
+    briefing_suffix: Optional[str] = None,
 ) -> Dict:
     """
     High-level function to create a podcast using the LangGraph workflow
 
     Args:
         content: Source content for the podcast
-        briefing: Podcast briefing/instructions
-        episode_name: Name of the episode
-        output_dir: Output directory path
-        speaker_config: Speaker configuration name (format: "filename:profile_name")
+        briefing: Podcast briefing/instructions (optional with episode_profile)
+        episode_name: Name of the episode (required)
+        output_dir: Output directory path (required)
+        speaker_config: Speaker configuration name (optional with episode_profile)
         outline_provider: Provider for outline generation
         outline_model: Model for outline generation
         transcript_provider: Provider for transcript generation
         transcript_model: Model for transcript generation
         num_segments: Number of podcast segments
+        episode_profile: Episode profile name to use for defaults
+        briefing_suffix: Additional briefing text to append to profile default
 
     Returns:
         Dict with results including final audio path
     """
+    # Resolve parameters using episode profile if provided
+    if episode_profile:
+        episode_config = load_episode_config(episode_profile)
+        
+        # Use episode profile defaults for missing parameters
+        speaker_config = speaker_config or episode_config.speaker_config
+        outline_provider = outline_provider or episode_config.outline_provider
+        outline_model = outline_model or episode_config.outline_model
+        transcript_provider = transcript_provider or episode_config.transcript_provider
+        transcript_model = transcript_model or episode_config.transcript_model
+        num_segments = num_segments or episode_config.num_segments
+        
+        # Resolve briefing with episode profile logic
+        if briefing:
+            # Explicit briefing overrides everything
+            resolved_briefing = briefing
+        elif briefing_suffix:
+            # Combine default briefing with suffix
+            resolved_briefing = f"{episode_config.default_briefing}\n\nAdditional focus: {briefing_suffix}"
+        else:
+            # Use default briefing from profile
+            resolved_briefing = episode_config.default_briefing
+    else:
+        # Use provided parameters or defaults
+        speaker_config = speaker_config or "ai_researchers"
+        outline_provider = outline_provider or "openai"
+        outline_model = outline_model or "gpt-4o-mini"
+        transcript_provider = transcript_provider or "anthropic"
+        transcript_model = transcript_model or "claude-3-5-sonnet-latest"
+        num_segments = num_segments or 3
+        resolved_briefing = briefing or ""
+    
+    # Validate required parameters
+    if not episode_name:
+        raise ValueError("episode_name is required")
+    if not output_dir:
+        raise ValueError("output_dir is required")
+    if not speaker_config:
+        raise ValueError("speaker_config is required (either directly or via episode_profile)")
+    if not resolved_briefing:
+        raise ValueError("briefing is required (either directly, via episode_profile, or with briefing_suffix)")
+    
     # Load speaker profile
     speaker_profile = load_speaker_config(speaker_config)
 
@@ -78,7 +125,7 @@ async def create_podcast(
     # Create initial state
     initial_state = PodcastState(
         content=content,
-        briefing=briefing,
+        briefing=resolved_briefing,
         num_segments=num_segments,
         outline=None,
         transcript=[],

@@ -1,0 +1,40 @@
+{
+  "profiles": {
+    "tech_discussion": {
+      "speaker_config": "ai_researchers",
+      "outline_provider": "openai",
+      "outline_model": "gpt-4o-mini",
+      "transcript_provider": "anthropic",
+      "transcript_model": "claude-3-5-sonnet-latest",
+      "default_briefing": "Create an engaging and informative discussion about technology topics. Focus on making complex concepts accessible while maintaining technical accuracy. Include diverse perspectives and practical implications.",
+      "num_segments": 4
+    },
+    "solo_expert": {
+      "speaker_config": "solo_expert",
+      "outline_provider": "openai",
+      "outline_model": "gpt-4o-mini",
+      "transcript_provider": "anthropic",
+      "transcript_model": "claude-3-5-sonnet-latest",
+      "default_briefing": "Create an educational and approachable explanation of the topic. Break down complex concepts into digestible segments and provide clear examples. Maintain an engaging teaching style throughout.",
+      "num_segments": 3
+    },
+    "business_analysis": {
+      "speaker_config": "business_analysts",
+      "outline_provider": "openai",
+      "outline_model": "gpt-4o-mini",
+      "transcript_provider": "anthropic",
+      "transcript_model": "claude-3-5-sonnet-latest",
+      "default_briefing": "Provide a comprehensive business analysis covering market implications, strategic considerations, and practical business applications. Focus on actionable insights and real-world impact.",
+      "num_segments": 4
+    },
+    "diverse_panel": {
+      "speaker_config": "diverse_panel",
+      "outline_provider": "openai",
+      "outline_model": "gpt-4o-mini",
+      "transcript_provider": "anthropic",
+      "transcript_model": "claude-3-5-sonnet-latest",
+      "default_briefing": "Create a dynamic multi-perspective discussion with diverse viewpoints. Encourage debate and exploration of different angles. Include both optimistic and skeptical perspectives to create engaging dialogue.",
+      "num_segments": 5
+    }
+  }
+}

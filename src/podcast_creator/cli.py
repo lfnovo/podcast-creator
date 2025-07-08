@@ -1,11 +1,8 @@
 """CLI commands for podcast-creator package."""
 
-import shutil
 from pathlib import Path
-from typing import Optional
 
 import click
-from loguru import logger
 
 
 def copy_resource_file(
@@ -79,6 +76,7 @@ def init(force: bool, output_dir: str) -> None:
     - prompts/podcast/outline.jinja
     - prompts/podcast/transcript.jinja
     - speakers_config.json
+    - episodes_config.json
     - example_usage.py
 
     These files provide a starting point for podcast generation and can be
@@ -109,6 +107,11 @@ def init(force: bool, output_dir: str) -> None:
             "source": "speakers_config.json",
             "target": output_path / "speakers_config.json",
             "description": "speaker configuration",
+        },
+        {
+            "source": "episodes_config.json",
+            "target": output_path / "episodes_config.json",
+            "description": "episode configuration",
         },
         {
             "source": "examples/example_usage.py",
@@ -144,7 +147,7 @@ def init(force: bool, output_dir: str) -> None:
             failed_files += 1
 
     # Summary
-    click.echo(f"\n📊 Initialization Summary:")
+    click.echo("\n📊 Initialization Summary:")
     click.echo(f"   ✓ Files copied: {copied_files}")
     if existing_files > 0:
         click.echo(f"   → Files already exist: {existing_files}")
@@ -152,17 +155,18 @@ def init(force: bool, output_dir: str) -> None:
         click.echo(f"   ✗ Files failed: {failed_files}")
 
     if failed_files == 0:
-        click.echo(f"\n🎉 Initialization complete!")
-        click.echo(f"\nNext steps:")
+        click.echo("\n🎉 Initialization complete!")
+        click.echo("\nNext steps:")
         click.echo(f"1. Customize templates in: {output_path}/prompts/")
         click.echo(f"2. Modify speaker configuration: {output_path}/speakers_config.json")
-        click.echo(f"3. Run the example: python {output_path}/example_usage.py")
-        click.echo(f"\n📖 Documentation: https://github.com/lfnovo/podcast-creator")
+        click.echo(f"3. Modify episode configuration: {output_path}/episodes_config.json")
+        click.echo(f"4. Run the example: python {output_path}/example_usage.py")
+        click.echo("\n📖 Documentation: https://github.com/lfnovo/podcast-creator")
     else:
-        click.echo(f"\n⚠ Some files could not be created. Please check the errors above.")
+        click.echo("\n⚠ Some files could not be created. Please check the errors above.")
 
     if existing_files > 0 and not force:
-        click.echo(f"\n💡 Tip: Use --force to overwrite existing files")
+        click.echo("\n💡 Tip: Use --force to overwrite existing files")
 
 
 @cli.command()

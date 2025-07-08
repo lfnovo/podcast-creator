@@ -1,6 +1,6 @@
 [project]
 name = "podcast-creator"
-version = "0.1.3"
+version = "0.2.0"
 license = "MIT"
 description = "AI-powered podcast generation tool that creates conversational audio content from text sources"
 readme = "README.md"
@@ -21,6 +21,10 @@ dependencies = [
 dev = [
     "ipykernel>=6.29.5",
     "ipywidgets>=8.1.7",
+    "langchain-anthropic>=0.3.17",
+    "langchain-ollama>=0.3.4",
+    "mypy>=1.16.1",
+    "pytest>=8.4.1",
 ]
 
 [build-system]
