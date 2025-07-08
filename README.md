@@ -26,10 +26,32 @@ podcast-creator init
 # - prompts/podcast/outline.jinja
 # - prompts/podcast/transcript.jinja  
 # - speakers_config.json
+# - episodes_config.json
 # - example_usage.py
 ```
 
 ### Generate Your First Podcast
+
+#### 🚀 **New: Episode Profiles (Streamlined)**
+
+```python
+import asyncio
+from podcast_creator import create_podcast
+
+async def main():
+    # One-liner podcast creation with episode profiles!
+    result = await create_podcast(
+        content="Your content here...",
+        episode_profile="tech_discussion",  # 🎯 Pre-configured settings
+        episode_name="my_podcast",
+        output_dir="output/my_podcast"
+    )
+    print(f"✅ Podcast created: {result['final_output_file_path']}")
+
+asyncio.run(main())
+```
+
+#### 📝 **Classic: Full Configuration**
 
 ```python
 import asyncio
@@ -46,6 +68,84 @@ async def main():
     print(f"✅ Podcast created: {result['final_output_file_path']}")
 
 asyncio.run(main())
+```
+
+## 🎯 Episode Profiles - Streamlined Podcast Creation
+
+Episode Profiles are **pre-configured sets of podcast generation parameters** that enable one-liner podcast creation for common use cases while maintaining full customization flexibility.
+
+### 🚀 **Why Episode Profiles?**
+
+- **67% fewer parameters** to specify for common use cases
+- **Consistent configurations** across podcast series
+- **Faster iteration** and prototyping
+- **Team collaboration** with shared settings
+- **Full backward compatibility** with existing code
+
+### 📋 **Bundled Profiles**
+
+| Profile | Description | Speakers | Segments | Use Case |
+|---------|-------------|----------|----------|----------|
+| `tech_discussion` | Technology topics with expert analysis | 2 AI researchers | 4 | Technical content, AI/ML topics |
+| `solo_expert` | Educational explanations | 1 expert teacher | 3 | Learning content, tutorials |
+| `business_analysis` | Market and business insights | 3 business analysts | 4 | Business strategy, market analysis |
+| `diverse_panel` | Multi-perspective discussions | 4 diverse voices | 5 | Complex topics, debate-style content |
+
+### 🎪 **Usage Patterns**
+
+```python
+# 1. Simple profile usage
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="tech_discussion",
+    episode_name="my_podcast",
+    output_dir="output/my_podcast"
+)
+
+# 2. Profile with briefing suffix
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="business_analysis",
+    briefing_suffix="Focus on ROI and cost optimization",
+    episode_name="my_podcast",
+    output_dir="output/my_podcast"
+)
+
+# 3. Profile with parameter overrides
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="solo_expert",
+    outline_model="gpt-4o",  # Override default
+    num_segments=5,          # Override default
+    episode_name="my_podcast",
+    output_dir="output/my_podcast"
+)
+```
+
+### 🔧 **Custom Episode Profiles**
+
+```python
+from podcast_creator import configure
+
+# Define your own episode profiles
+configure("episode_config", {
+    "profiles": {
+        "my_startup_pitch": {
+            "speaker_config": "business_analysts",
+            "outline_model": "gpt-4o",
+            "default_briefing": "Create an engaging startup pitch...",
+            "num_segments": 6
+        }
+    }
+})
+
+# Use your custom profile
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="my_startup_pitch",
+    episode_name="pitch_deck",
+    output_dir="output/pitch_deck"
+)
 ```
 
 ## ✨ Features
@@ -82,6 +182,7 @@ configure("speakers_config", {
 
 ### 🎙️ **Core Features**
 
+- **🎯 Episode Profiles**: Pre-configured settings for one-liner podcast creation
 - **🔄 LangGraph Workflow**: Advanced state management and parallel processing
 - **👥 Multi-Speaker Support**: Dynamic 1-4 speaker configurations with rich personalities
 - **⚡ Parallel Audio Generation**: API-safe batching with concurrent processing
@@ -124,6 +225,7 @@ The library uses a smart priority system for loading resources:
 3. **Working Directory**
    - `./prompts/podcast/*.jinja`
    - `./speakers_config.json`
+   - `./episodes_config.json`
 
 4. **Bundled Defaults** (lowest priority)
    - Package includes production-ready templates
@@ -131,7 +233,25 @@ The library uses a smart priority system for loading resources:
 
 ## 📚 Usage Examples
 
-### Basic Usage
+### 🎯 Episode Profiles (Recommended)
+
+```python
+import asyncio
+from podcast_creator import create_podcast
+
+# Simple episode profile usage
+async def main():
+    result = await create_podcast(
+        content="AI has transformed many industries...",
+        episode_profile="tech_discussion",  # 🚀 One-liner magic!
+        episode_name="ai_impact",
+        output_dir="output/ai_impact"
+    )
+
+asyncio.run(main())
+```
+
+### 📝 Classic Configuration
 
 ```python
 import asyncio
@@ -203,21 +323,54 @@ result = await create_podcast(
 )
 ```
 
-### Different Speaker Configurations
+### 🎪 Episode Profile Variations
 
 ```python
-# Solo expert
+# Solo expert explanation
 result = await create_podcast(
     content="Technical content...",
-    briefing="Deep technical explanation...",
-    speaker_config="solo_expert"
+    episode_profile="solo_expert",
+    episode_name="deep_dive",
+    output_dir="output/deep_dive"
 )
 
-# Panel discussion (3-4 speakers)
+# Business analysis
+result = await create_podcast(
+    content="Market trends...",
+    episode_profile="business_analysis",
+    episode_name="market_analysis",
+    output_dir="output/market_analysis"
+)
+
+# Panel discussion with diverse perspectives
 result = await create_podcast(
     content="Complex topic...",
-    briefing="Multi-perspective analysis...",
-    speaker_config="diverse_panel"
+    episode_profile="diverse_panel",
+    episode_name="panel_discussion",
+    output_dir="output/panel_discussion"
+)
+```
+
+### 🔧 Episode Profile Customization
+
+```python
+# Use profile with briefing suffix
+result = await create_podcast(
+    content="Cloud computing trends...",
+    episode_profile="business_analysis",
+    briefing_suffix="Focus on cost optimization and ROI metrics",
+    episode_name="cloud_economics",
+    output_dir="output/cloud_economics"
+)
+
+# Override specific parameters
+result = await create_podcast(
+    content="Quantum computing...",
+    episode_profile="tech_discussion",
+    outline_model="gpt-4o",  # Override default
+    num_segments=6,          # Override default
+    episode_name="quantum_deep",
+    output_dir="output/quantum_deep"
 )
 ```
 
@@ -246,6 +399,7 @@ result = await create_podcast(...)
 | `prompts_dir` | `str` | Directory containing template files |
 | `templates` | `dict` | Inline template content |
 | `speakers_config` | `str/dict` | Path to speaker JSON or inline config |
+| `episode_config` | `str/dict` | Path to episode JSON or inline config |
 | `output_dir` | `str` | Default output directory |
 
 ## 🎭 Speaker Configuration
@@ -366,11 +520,13 @@ podcast-creator/
 │       ├── graph.py              # LangGraph workflow
 │       ├── nodes.py              # Workflow nodes
 │       ├── speakers.py           # Speaker management
+│       ├── episodes.py           # Episode profile management
 │       ├── state.py              # State management
 │       ├── validators.py         # Validation utilities
 │       └── resources/            # Bundled templates
 │           ├── prompts/
 │           ├── speakers_config.json
+│           ├── episodes_config.json
 │           └── examples/
 ├── pyproject.toml               # Package configuration
 └── README.md
@@ -396,6 +552,7 @@ python example_usage.py
 
 Check the `examples/` directory for:
 
+- **Episode Profiles**: Comprehensive guide to streamlined podcast creation
 - Basic usage examples
 - Advanced configuration
 - Custom speaker setups

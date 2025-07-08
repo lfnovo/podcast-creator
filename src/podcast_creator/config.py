@@ -9,6 +9,7 @@ from loguru import logger
 from pydantic import BaseModel, Field, validator
 
 from .speakers import SpeakerConfig, SpeakerProfile
+from .episodes import EpisodeConfig, EpisodeProfile
 
 
 class TemplateConfig(BaseModel):
@@ -39,6 +40,9 @@ class PodcastConfig(BaseModel):
     )
     templates: Optional[TemplateConfig] = Field(
         None, description="Inline template configurations"
+    )
+    episode_config: Optional[Union[str, Dict[str, Any]]] = Field(
+        None, description="Path to episode config JSON or inline config dict"
     )
 
     @validator("prompts_dir")
@@ -77,6 +81,30 @@ class PodcastConfig(BaseModel):
                 SpeakerConfig(**v)
             except Exception as e:
                 raise ValueError(f"Invalid speakers config structure: {e}")
+
+        return v
+
+    @validator("episode_config")
+    def validate_episode_config(
+        cls, v: Optional[Union[str, Dict[str, Any]]]
+    ) -> Optional[Union[str, Dict[str, Any]]]:
+        """Validate episode configuration."""
+        if v is None:
+            return v
+
+        if isinstance(v, str):
+            # Validate file path
+            path = Path(v)
+            if not path.exists():
+                raise ValueError(f"Episode config file not found: {v}")
+            if not path.suffix == ".json":
+                raise ValueError(f"Episode config must be a JSON file: {v}")
+        elif isinstance(v, dict):
+            # Validate dictionary structure
+            try:
+                EpisodeConfig(**v)
+            except Exception as e:
+                raise ValueError(f"Invalid episode config structure: {e}")
 
         return v
 
@@ -135,6 +163,9 @@ class ConfigurationManager:
             elif key == "speakers_config" and isinstance(val, dict):
                 # Validate speaker config structure
                 SpeakerConfig(**val)
+            elif key == "episode_config" and isinstance(val, dict):
+                # Validate episode config structure
+                EpisodeConfig(**val)
 
         # Validate updates fit our schema
         current = self._config.copy()
@@ -271,6 +302,35 @@ class ConfigurationManager:
                     return speaker_config.get_profile(config_name)
             except Exception as e:
                 logger.debug(f"Could not load speaker profile from config: {e}")
+
+        return None
+
+    def get_episode_profile(self, config_name: str) -> Optional[EpisodeProfile]:
+        """
+        Get episode profile from configuration.
+
+        Args:
+            config_name: Name of the episode profile
+
+        Returns:
+            EpisodeProfile if found in configuration, None otherwise
+        """
+        episode_config = self.get_config("episode_config")
+        if not episode_config:
+            return None
+
+        if isinstance(episode_config, dict):
+            # Inline episode configuration
+            try:
+                episode_config_obj = EpisodeConfig(**episode_config)
+                # Use config_name directly as profile name
+                if config_name in episode_config_obj.profiles:
+                    logger.debug(
+                        f"Using configured episode profile: {config_name}"
+                    )
+                    return episode_config_obj.get_profile(config_name)
+            except Exception as e:
+                logger.debug(f"Could not load episode profile from config: {e}")
 
         return None
 

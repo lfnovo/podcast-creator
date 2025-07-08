@@ -17,6 +17,7 @@ from .core import (
 from .graph import PodcastState, create_podcast
 from .graph import graph as podcast_graph
 from .speakers import Speaker, SpeakerConfig, SpeakerProfile, load_speaker_config
+from .episodes import EpisodeProfile, EpisodeConfig, load_episode_config
 
 try:
     import importlib.metadata as metadata
@@ -52,4 +53,8 @@ __all__ = [
     "SpeakerProfile",
     "SpeakerConfig",
     "load_speaker_config",
+    # Episode models
+    "EpisodeProfile",
+    "EpisodeConfig",
+    "load_episode_config",
 ]

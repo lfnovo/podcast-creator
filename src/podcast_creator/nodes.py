@@ -29,7 +29,7 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
     outline_model = AIFactory.create_language(
         outline_provider,
         outline_model_name,
-        config={"max_tokens": 2000, "structured": {"type": "json"}},
+        config={"max_tokens": 3000, "structured": {"type": "json"}},
     ).to_langchain()
 
     # Generate outline
@@ -69,7 +69,7 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
     transcript_model = AIFactory.create_language(
         transcript_provider,
         transcript_model_name,
-        config={"max_tokens": 3000, "structured": {"type": "json"}},
+        config={"max_tokens": 5000, "structured": {"type": "json"}},
     ).to_langchain()
 
     # Create validated transcript parser
@@ -85,7 +85,7 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
     transcript = []
     for i, segment in enumerate(outline.segments):
         logger.info(
-            f"Generating transcript for segment {i+1}/{len(outline.segments)}: {segment.name}"
+            f"Generating transcript for segment {i + 1}/{len(outline.segments)}: {segment.name}"
         )
 
         is_final = i == len(outline.segments) - 1
@@ -156,7 +156,7 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
         total_batches = (total_segments + batch_size - 1) // batch_size
 
         logger.info(
-            f"Processing batch {batch_number}/{total_batches} (clips {batch_start}-{batch_end-1})"
+            f"Processing batch {batch_number}/{total_batches} (clips {batch_start}-{batch_end - 1})"
         )
 
         # Create tasks for this batch
