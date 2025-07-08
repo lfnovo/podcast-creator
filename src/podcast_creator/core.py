@@ -6,7 +6,6 @@ from typing import Union, Tuple, List
 from pydantic import BaseModel, Field, validator
 from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from typing import Literal
-from ai_prompter import Prompter
 import re
 # Compile regex pattern once for better performance
 THINK_PATTERN = re.compile(r'<think>(.*?)</think>', re.DOTALL)
