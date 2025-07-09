@@ -91,10 +91,10 @@ class Segment(BaseModel):
 class Outline(BaseModel):
     segments: list[Segment] = Field(..., description="List of segments")
 
-    def model_dump(self, *args, **kwargs) -> Dict[str, Any]:
+    def model_dump(self, **kwargs) -> Dict[str, Any]:
         return {
             "segments": [
-                segment.model_dump(*args, **kwargs) for segment in self.segments
+                segment.model_dump(**kwargs) for segment in self.segments
             ]
         }
 
@@ -114,11 +114,11 @@ class Dialogue(BaseModel):
 class Transcript(BaseModel):
     transcript: list[Dialogue] = Field(..., description="Transcript")
 
-    def model_dump(self, *args, **kwargs) -> Dict[str, Any]:
+    def model_dump(self, **kwargs) -> Dict[str, Any]:
         # Custom serialization: convert list of Dialogue models to list of dicts
         return {
             "transcript": [
-                dialogue.model_dump(*args, **kwargs) for dialogue in self.transcript
+                dialogue.model_dump(**kwargs) for dialogue in self.transcript
             ]
         }
 
