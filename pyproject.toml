@@ -1,6 +1,6 @@
 [project]
 name = "podcast-creator"
-version = "0.2.2"
+version = "0.2.3"
 license = "MIT"
 description = "AI-powered podcast generation tool that creates conversational audio content from text sources"
 readme = "README.md"

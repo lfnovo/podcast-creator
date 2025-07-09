@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Union
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class Speaker(BaseModel):
@@ -15,7 +15,8 @@ class Speaker(BaseModel):
         ..., description="Speaker's personality traits and speaking style"
     )
 
-    @validator("name")
+    @field_validator("name")
+    @classmethod
     def validate_name(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError("Speaker name cannot be empty")
@@ -31,7 +32,8 @@ class SpeakerProfile(BaseModel):
     tts_model: str = Field(..., description="TTS model name")
     speakers: List[Speaker] = Field(..., description="List of speakers in this profile")
 
-    @validator("speakers")
+    @field_validator("speakers")
+    @classmethod
     def validate_speakers(cls, v):
         if len(v) < 1 or len(v) > 4:
             raise ValueError("Must have between 1 and 4 speakers")
@@ -71,7 +73,8 @@ class SpeakerConfig(BaseModel):
         ..., description="Named speaker profiles"
     )
 
-    @validator("profiles")
+    @field_validator("profiles")
+    @classmethod
     def validate_profiles(cls, v):
         if len(v) == 0:
             raise ValueError("At least one speaker profile must be defined")

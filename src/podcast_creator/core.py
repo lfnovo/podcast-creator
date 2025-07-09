@@ -138,7 +138,8 @@ def create_validated_transcript_parser(valid_speaker_names: List[str]):
         speaker: str = Field(..., description="Speaker name")
         dialogue: str = Field(..., description="Dialogue")
 
-        @validator("speaker")
+        @field_validator("speaker")
+        @classmethod
         def validate_speaker_name(cls, v):
             if not v or len(v.strip()) == 0:
                 raise ValueError("Speaker name cannot be empty")

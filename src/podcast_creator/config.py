@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Union
 from ai_prompter import Prompter
 from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from loguru import logger
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from .speakers import SpeakerConfig, SpeakerProfile
 from .episodes import EpisodeConfig, EpisodeProfile
@@ -18,7 +18,8 @@ class TemplateConfig(BaseModel):
     outline: Optional[str] = Field(None, description="Outline template content")
     transcript: Optional[str] = Field(None, description="Transcript template content")
 
-    @validator("outline", "transcript")
+    @field_validator("outline", "transcript")
+    @classmethod
     def validate_template(cls, v: Optional[str]) -> Optional[str]:
         """Validate template is not empty if provided."""
         if v is not None and not v.strip():
@@ -45,7 +46,8 @@ class PodcastConfig(BaseModel):
         None, description="Path to episode config JSON or inline config dict"
     )
 
-    @validator("prompts_dir")
+    @field_validator("prompts_dir")
+    @classmethod
     def validate_prompts_dir(cls, v: Optional[str]) -> Optional[str]:
         """Validate prompts directory if provided."""
         if v is not None:
@@ -54,13 +56,15 @@ class PodcastConfig(BaseModel):
                 raise ValueError(f"Prompts path is not a directory: {v}")
         return v
     
-    @validator("output_dir")
+    @field_validator("output_dir")
+    @classmethod
     def validate_output_dir(cls, v: Optional[str]) -> Optional[str]:
         """Validate output directory (can be created if doesn't exist)."""
         # Output dir doesn't need to exist - it can be created
         return v
 
-    @validator("speakers_config")
+    @field_validator("speakers_config")
+    @classmethod
     def validate_speakers_config(
         cls, v: Optional[Union[str, Dict[str, Any]]]
     ) -> Optional[Union[str, Dict[str, Any]]]:
@@ -84,7 +88,8 @@ class PodcastConfig(BaseModel):
 
         return v
 
-    @validator("episode_config")
+    @field_validator("episode_config")
+    @classmethod
     def validate_episode_config(
         cls, v: Optional[Union[str, Dict[str, Any]]]
     ) -> Optional[Union[str, Dict[str, Any]]]:
