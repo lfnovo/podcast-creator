@@ -155,6 +155,13 @@ def create_validated_transcript_parser(valid_speaker_names: List[str]):
     class ValidatedTranscript(BaseModel):
         transcript: list[ValidatedDialogue] = Field(..., description="Transcript")
 
+        def model_dump(self, **kwargs) -> Dict[str, Any]:
+            return {
+                "transcript": [
+                    dialogue.model_dump(**kwargs) for dialogue in self.transcript
+                ]
+            }
+
     return PydanticOutputParser(pydantic_object=ValidatedTranscript)
 
 
