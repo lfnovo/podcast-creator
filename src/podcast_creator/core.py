@@ -1,12 +1,13 @@
-from moviepy import AudioFileClip, concatenate_audioclips
-from loguru import logger
+import re
 import uuid
 from pathlib import Path
-from typing import Union, Tuple, List
-from pydantic import BaseModel, Field, validator
+from typing import Any, Dict, List, Literal, Tuple, Union
+
 from langchain_core.output_parsers.pydantic import PydanticOutputParser
-from typing import Literal
-import re
+from loguru import logger
+from moviepy import AudioFileClip, concatenate_audioclips
+from pydantic import BaseModel, Field, field_validator
+
 # Compile regex pattern once for better performance
 THINK_PATTERN = re.compile(r'<think>(.*?)</think>', re.DOTALL)
 
@@ -87,11 +88,17 @@ class Segment(BaseModel):
 class Outline(BaseModel):
     segments: list[Segment] = Field(..., description="List of segments")
 
+    def model_dump(self, *args, **kwargs) -> Dict[str, Any]:
+        return {
+            "segments": [segment.model_dump(*args, **kwargs) for segment in self.segments]
+        }
+
 class Dialogue(BaseModel):
     speaker: str = Field(..., description="Speaker name")
     dialogue: str = Field(..., description="Dialogue")
     
-    @validator('speaker')
+    @field_validator('speaker')
+    @classmethod
     def validate_speaker_name(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError("Speaker name cannot be empty")
@@ -100,6 +107,11 @@ class Dialogue(BaseModel):
 class Transcript(BaseModel):
     transcript: list[Dialogue] = Field(..., description="Transcript")
 
+    def model_dump(self, *args, **kwargs) -> Dict[str, Any]:
+        # Custom serialization: convert list of Dialogue models to list of dicts
+        return {
+            "transcript": [dialogue.model_dump(*args, **kwargs) for dialogue in self.transcript]
+        }
 
 def create_validated_transcript_parser(valid_speaker_names: List[str]):
     """
@@ -250,4 +262,4 @@ async def combine_audio_files(audio_dir: Union[Path, str], final_filename: str, 
             try:
                 clip_obj.close()
             except Exception as close_exc:
-                logger.debug(f"Error closing source clip: {close_exc}")
+                logger.debug(f"Error closing source clip: {close_exc}")                logger.debug(f"Error closing source clip: {close_exc}")
