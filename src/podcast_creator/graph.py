@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Union
 
 from langgraph.graph import END, START, StateGraph
 from loguru import logger
@@ -40,7 +40,7 @@ graph = workflow.compile()
 
 
 async def create_podcast(
-    content: str,
+    content: Union[str, List[Dict]],
     briefing: Optional[str] = None,
     episode_name: Optional[str] = None,
     output_dir: Optional[str] = None,

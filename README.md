@@ -32,7 +32,23 @@ podcast-creator init
 
 ### Generate Your First Podcast
 
-#### 🚀 **New: Episode Profiles (Streamlined)**
+#### 🎨 **New: Web Interface**
+
+```bash
+# Launch the Streamlit web interface
+podcast-creator ui
+
+# Custom port/host
+podcast-creator ui --port 8080 --host 0.0.0.0
+
+# The UI provides:
+# - Visual profile management
+# - Multi-content podcast generation  
+# - Episode library with playback
+# - Import/export functionality
+```
+
+#### 🚀 **Episode Profiles (Streamlined)**
 
 ```python
 import asyncio
@@ -182,16 +198,18 @@ configure("speakers_config", {
 
 ### 🎙️ **Core Features**
 
+- **🎨 Web Interface**: Complete Streamlit UI for visual podcast creation
 - **🎯 Episode Profiles**: Pre-configured settings for one-liner podcast creation
 - **🔄 LangGraph Workflow**: Advanced state management and parallel processing
 - **👥 Multi-Speaker Support**: Dynamic 1-4 speaker configurations with rich personalities
 - **⚡ Parallel Audio Generation**: API-safe batching with concurrent processing
 - **🔧 Fully Configurable**: Multiple AI providers (OpenAI, Anthropic, Google, etc.)
-- **📊 Content Processing**: Extracts content from various sources
+- **📊 Multi-Content Support**: Combine text, files, and URLs in structured arrays
 - **🤖 AI-Powered Generation**: Creates structured outlines and natural dialogues
 - **🎵 Multi-Provider TTS**: ElevenLabs, OpenAI, Google TTS support
 - **📝 Flexible Templates**: Jinja2-based prompt customization
 - **🌍 Multilingual Support**: Generate content in multiple languages
+- **📚 Episode Library**: Built-in audio playback and transcript viewing
 
 ## 🏗️ Architecture
 
@@ -472,6 +490,15 @@ output/episode_name/
 ## 🛠️ CLI Commands
 
 ```bash
+# Launch web interface (NEW!)
+podcast-creator ui
+
+# Launch on custom port/host
+podcast-creator ui --port 8080 --host 0.0.0.0
+
+# Skip dependency check
+podcast-creator ui --skip-init-check
+
 # Initialize project with templates
 podcast-creator init
 
@@ -484,6 +511,19 @@ podcast-creator init --force
 # Show version
 podcast-creator version
 ```
+
+### 🎨 Web Interface Features
+
+The `podcast-creator ui` command launches a comprehensive Streamlit interface that provides:
+
+- **🏠 Dashboard**: Statistics and quick actions
+- **🎙️ Speaker Management**: Visual profile creation with voice selection dropdowns
+- **📺 Episode Management**: Configure generation parameters and AI models
+- **🎬 Podcast Generation**: Multi-content support (text, files, URLs) with real-time progress
+- **📚 Episode Library**: Audio playback, transcript viewing, and downloads
+- **📤 Import/Export**: Share profiles via JSON files
+
+The interface automatically detects missing dependencies and offers to run initialization if needed.
 
 ## 🚀 Performance
 
@@ -515,7 +555,7 @@ podcast-creator/
 │   └── podcast_creator/
 │       ├── __init__.py           # Public API
 │       ├── config.py             # Configuration system
-│       ├── cli.py                # CLI commands
+│       ├── cli.py                # CLI commands (with UI command)
 │       ├── core.py               # Core utilities
 │       ├── graph.py              # LangGraph workflow
 │       ├── nodes.py              # Workflow nodes
@@ -527,6 +567,7 @@ podcast-creator/
 │           ├── prompts/
 │           ├── speakers_config.json
 │           ├── episodes_config.json
+│           ├── streamlit_app/    # Web interface
 │           └── examples/
 ├── pyproject.toml               # Package configuration
 └── README.md
@@ -540,6 +581,9 @@ python -c "from podcast_creator import create_podcast; print('Import successful'
 
 # Test CLI
 podcast-creator --help
+
+# Test web interface
+podcast-creator ui
 
 # Test initialization
 mkdir test_project
