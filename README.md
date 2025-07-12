@@ -213,17 +213,6 @@ configure("speakers_config", {
 
 ## 🏗️ Architecture
 
-### LangGraph Workflow
-
-```mermaid
-graph LR
-    A[Content Input] --> B[Outline Node]
-    B --> C[Transcript Node]
-    C --> D[Audio Generation<br/>Sequential Batches]
-    D --> E[Audio Combination]
-    E --> F[Final Output]
-```
-
 ### Configuration Priority
 
 The library uses a smart priority system for loading resources:
