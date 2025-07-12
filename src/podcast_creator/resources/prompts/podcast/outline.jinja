@@ -5,9 +5,14 @@ Here is the briefing for the podcast episode:
 {{ briefing }}
 </briefing>
 
-The user has attached a document to be used as the context for this podcast episode:
+The user has provided content to be used as the context for this podcast episode:
 <context>
-{{ context }}
+{% for item in context %}
+<item>
+<title>{{ item.title }}</title>
+<content>{{ item.content }}</content>
+</item>
+{% endfor %}
 </context>
 
 The podcast will feature the following speakers:

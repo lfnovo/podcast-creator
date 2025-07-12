@@ -1,6 +1,6 @@
 from operator import add
 from pathlib import Path
-from typing import Annotated, List, Optional, TypedDict
+from typing import Annotated, List, Optional, TypedDict, Union, Dict
 
 from .core import Dialogue, Outline
 from .speakers import SpeakerProfile
@@ -8,7 +8,7 @@ from .speakers import SpeakerProfile
 
 class PodcastState(TypedDict):
     # Input data
-    content: str
+    content: Union[str, List[Dict]]
     briefing: str
     num_segments: int
 

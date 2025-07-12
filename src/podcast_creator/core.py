@@ -92,11 +92,7 @@ class Outline(BaseModel):
     segments: list[Segment] = Field(..., description="List of segments")
 
     def model_dump(self, **kwargs) -> Dict[str, Any]:
-        return {
-            "segments": [
-                segment.model_dump(**kwargs) for segment in self.segments
-            ]
-        }
+        return {"segments": [segment.model_dump(**kwargs) for segment in self.segments]}
 
 
 class Dialogue(BaseModel):
@@ -213,7 +209,7 @@ async def combine_audio_files(
     list_of_audio_paths = sorted(audio_dir.glob("*.mp3"))
     output_filename_from_input = final_filename
 
-    logger.warning(list_of_audio_paths)
+    logger.debug(list_of_audio_paths)
 
     if not list_of_audio_paths:
         logger.warning(
