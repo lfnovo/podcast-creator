@@ -266,6 +266,19 @@ def ui(port: int, host: str, skip_init_check: bool) -> None:
     The UI requires initialization files in the current directory.
     Use --skip-init-check to bypass the dependency check.
     """
+    # Check if Streamlit is available
+    try:
+        import streamlit
+    except ImportError:
+        click.echo("❌ Streamlit is not installed. The UI feature requires Streamlit.")
+        click.echo()
+        click.echo("Install options:")
+        click.echo("  • Full installation: pip install podcast-creator[ui]")
+        click.echo("  • Streamlit only:    pip install streamlit>=1.46.1")
+        click.echo()
+        click.echo("💡 For library-only usage without UI, no additional installation needed.")
+        sys.exit(1)
+    
     current_dir = Path.cwd()
     
     # Check dependencies unless skipped

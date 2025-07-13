@@ -15,8 +15,13 @@ And [here is a one-speaker version](https://soundcloud.com/lfnovo/single-speaker
 ### Installation
 
 ```bash
-# Install from PyPI (when published)
-pip install podcast-creator
+# Library only (programmatic use)
+uv add podcast-creator
+# or pip install podcast-creator
+
+# Full installation with web UI
+uv add podcast-creator --extra ui
+# or pip install podcast-creator[ui]
 
 # Or install from source
 git clone <repository-url>
@@ -28,6 +33,10 @@ uv sync
 # or
 # pip install uv
 ```
+
+**Installation Options:**
+- **Library only**: `pip install podcast-creator` - For programmatic use without web interface
+- **With UI**: `pip install podcast-creator[ui]` - Includes Streamlit web interface for visual management
 
 ### Configure API Keys
 
@@ -506,7 +515,7 @@ output/episode_name/
 ## 🛠️ CLI Commands
 
 ```bash
-# Launch web interface (NEW!)
+# Launch web interface (requires UI installation)
 podcast-creator ui
 
 # Launch on custom port/host
@@ -527,6 +536,8 @@ podcast-creator init --force
 # Show version
 podcast-creator version
 ```
+
+**Note**: The `ui` command requires the UI installation: `pip install podcast-creator[ui]`
 
 ### 🎨 Web Interface Features
 
