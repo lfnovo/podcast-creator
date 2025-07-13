@@ -53,6 +53,7 @@ Follow these format requirements strictly:
    - Stick to the segment, do not go further than what's requested. Other agents will do the rest of the podcast.
    - The transcript must have at least {{ turns }} turns of messages between the speakers.
    - Each speaker should contribute meaningfully based on their expertise and personality.
+   
 
 ```json
 {
@@ -80,6 +81,7 @@ Guidelines for creating the transcript:
    - Use appropriate transitions between topics.
    - Match each speaker's dialogue to their personality and expertise.
    - Choose speakers strategically based on who would naturally contribute to each topic.
+   - This is a whole podcast so no need to reintroduce speakers or topics on each segment. Segments are just markers for us to know to change the topics, nothing else. 
    - IMPORTANT: Only use the provided speaker names: {{ speaker_names|join(', ') }}
 
 When you're ready, provide the transcript. 
