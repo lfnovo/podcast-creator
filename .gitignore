@@ -15,3 +15,5 @@ output/
 .git.backup
 
 .vscode/
+
+.DS_Store

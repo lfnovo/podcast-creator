@@ -21,7 +21,24 @@ pip install podcast-creator
 # Or install from source
 git clone <repository-url>
 cd podcast-creator
-pip install .
+uv sync
+
+# Don't have uv? Install it with:
+# curl -LsSf https://astral.sh/uv/install.sh | sh
+# or
+# pip install uv
+```
+
+### Configure API Keys
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit .env and add your API keys:
+# - OpenAI API key for LLM models
+# - ElevenLabs API key for high-quality TTS
+# - Other provider keys as needed
 ```
 
 ### Initialize Your Project
@@ -41,6 +58,8 @@ podcast-creator init
 ### Generate Your First Podcast
 
 #### 🎨 **New: Web Interface**
+
+![Podcast Creator Studio Interface](streamlit.png)
 
 ```bash
 # Launch the Streamlit web interface
@@ -537,11 +556,12 @@ The interface automatically detects missing dependencies and offers to run initi
 ```bash
 git clone <repository-url>
 cd podcast-creator
-pip install -e .
 
-# Or with uv
+# Install with uv (recommended)
 uv sync
-uv pip install -e .
+
+# This installs the package in editable mode
+# along with all dependencies
 ```
 
 ### Project Structure
