@@ -2,6 +2,14 @@
 
 An AI-powered podcast generation library that creates conversational audio content from text-based sources. This pip-installable package processes documents, generates structured outlines, creates natural dialogue transcripts, and converts them into high-quality audio podcasts using **LangGraph workflow orchestration**.
 
+## 🎧 **Live Demo**
+
+Listen to a real podcast generated with this tool - a 4-person debate on AI situational awareness:
+
+<iframe width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/1980893162&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true"></iframe>
+
+*Generated using the `diverse_panel` episode profile with 4 AI experts discussing the nuances of artificial general intelligence and situational awareness.*
+
 ## 🚀 Quick Start
 
 ### Installation
