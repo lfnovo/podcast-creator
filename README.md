@@ -4,9 +4,7 @@ An AI-powered podcast generation library that creates conversational audio conte
 
 ## 🎧 **Live Demo**
 
-Listen to a real podcast generated with this tool - a 4-person debate on the [Situational Awareness Paper](https://situational-awareness.ai/wp-content/uploads/2024/06/situationalawareness.pdf). Includes my own cloned voice 😂
-
-<iframe width="100%" height="300" scrolling="no" frameborder="no" allow="autoplay" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/2129211108&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true&visual=true"></iframe><div style="font-size: 10px; color: #cccccc;line-break: anywhere;word-break: normal;overflow: hidden;white-space: nowrap;text-overflow: ellipsis; font-family: Interstate,Lucida Grande,Lucida Sans Unicode,Lucida Sans,Garuda,Verdana,Tahoma,sans-serif;font-weight: 100;"><a href="https://soundcloud.com/lfnovo" title="lfnovo" target="_blank" style="color: #cccccc; text-decoration: none;">lfnovo</a> · <a href="https://soundcloud.com/lfnovo/situational-awareness-podcast" title="Situational Awareness Podcast" target="_blank" style="color: #cccccc; text-decoration: none;">Situational Awareness Podcast</a></div>
+[Listen to a real podcast](https://soundcloud.com/lfnovo/situational-awareness-podcast) generated with this tool - a 4-person debate on the [Situational Awareness Paper](https://situational-awareness.ai/wp-content/uploads/2024/06/situationalawareness.pdf). Includes my own cloned voice 😂
 
 *Generated using the `diverse_panel` episode profile with 4 AI experts discussing the nuances of artificial general intelligence and situational awareness.*
 
