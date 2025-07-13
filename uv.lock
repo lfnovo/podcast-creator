@@ -1986,7 +1986,7 @@ wheels = [
 
 [[package]]
 name = "podcast-creator"
-version = "0.4.0"
+version = "0.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "ai-prompter" },
@@ -2030,7 +2030,7 @@ requires-dist = [
     { name = "nest-asyncio", specifier = ">=1.6.0" },
     { name = "pydub", specifier = ">=0.25.1" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
-    { name = "requests", specifier = ">=2.32.4" },
+    { name = "requests", specifier = ">=2" },
     { name = "tiktoken", specifier = ">=0.9.0" },
 ]
 
