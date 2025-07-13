@@ -17,3 +17,4 @@ output/
 .vscode/
 
 .DS_Store
+**/streamlit_app/*.json
