@@ -8,6 +8,8 @@ An AI-powered podcast generation library that creates conversational audio conte
 
 *Generated using the `diverse_panel` episode profile with 4 AI experts discussing the nuances of artificial general intelligence and situational awareness.*
 
+And [here is a one-speaker version](https://soundcloud.com/lfnovo/single-speaker-podcast-on-situational-awareness) of it, like your real dedicated teacher. 
+
 ## 🚀 Quick Start
 
 ### Installation
