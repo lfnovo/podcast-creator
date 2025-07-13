@@ -1441,7 +1441,7 @@ def show_generate_podcast_page():
                     
                     # Prepare parameters
                     generation_params = {
-                        "content": content_pieces,
+                        "content": [piece['content'] for piece in content_pieces],
                         "episode_name": episode_name,
                         "output_dir": f"{output_dir}/{episode_name}",
                         "episode_profile": episode_profile

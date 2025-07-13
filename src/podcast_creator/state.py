@@ -8,7 +8,7 @@ from .speakers import SpeakerProfile
 
 class PodcastState(TypedDict):
     # Input data
-    content: Union[str, List[Dict]]
+    content: Union[str, List[str]]
     briefing: str
     num_segments: int
 

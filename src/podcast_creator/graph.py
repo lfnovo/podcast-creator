@@ -40,7 +40,7 @@ graph = workflow.compile()
 
 
 async def create_podcast(
-    content: Union[str, List[Dict]],
+    content: Union[str, List[str]],
     briefing: Optional[str] = None,
     episode_name: Optional[str] = None,
     output_dir: Optional[str] = None,

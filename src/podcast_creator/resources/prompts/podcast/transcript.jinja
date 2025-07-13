@@ -9,12 +9,15 @@ First, review the briefing for the podcast episode:
 
 The user has provided content to be used as the context for this podcast episode:
 <context>
+{% if context is string %}
+{{ context }}
+{% else %}
 {% for item in context %}
-<item>
-<title>{{ item.title }}</title>
-<content>{{ item.content }}</content>
-</item>
+<content_piece>
+{{ item }}
+</content_piece>
 {% endfor %}
+{% endif %}
 </context>
 
 The podcast features the following speakers:
