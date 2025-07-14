@@ -63,7 +63,7 @@ def cli():
 @click.option(
     "--force",
     is_flag=True,
-    help="Overwrite existing files",
+    help="Overwrite existing files without prompting",
 )
 @click.option(
     "--output-dir",
@@ -127,19 +127,52 @@ def init(force: bool, output_dir: str) -> None:
     copied_files = 0
     existing_files = 0
     failed_files = 0
+    skipped_files = 0
+    
+    # State for "all" choices
+    overwrite_all = False
+    skip_all = False
 
     for file_info in files_to_copy:
         source = file_info["source"]
         target = file_info["target"]
         description = file_info["description"]
 
-        # Check if file exists and force flag
+        # Check if file exists
         if target.exists():
-            if force:
+            should_overwrite = False
+            
+            if force or overwrite_all:
+                should_overwrite = True
+            elif skip_all:
+                should_overwrite = False
+            else:
+                # Ask user for this specific file
+                click.echo(f"\n📄 File already exists: {target}")
+                choice = click.prompt(
+                    f"Overwrite {description}? [y]es, [n]o, [a]ll, [s]kip all",
+                    type=click.Choice(['y', 'n', 'a', 's'], case_sensitive=False),
+                    default='n'
+                )
+                
+                if choice == 'y':
+                    should_overwrite = True
+                elif choice == 'n':
+                    should_overwrite = False
+                elif choice == 'a':
+                    should_overwrite = True
+                    overwrite_all = True
+                elif choice == 's':
+                    should_overwrite = False
+                    skip_all = True
+            
+            if should_overwrite:
                 click.echo(f"⚠ Overwriting existing {description}: {target}")
                 target.unlink()  # Remove existing file
             else:
                 existing_files += 1
+                skipped_files += 1
+                click.echo(f"→ Skipped existing {description}: {target}")
                 continue
 
         # Copy the file
@@ -152,8 +185,8 @@ def init(force: bool, output_dir: str) -> None:
     # Summary
     click.echo("\n📊 Initialization Summary:")
     click.echo(f"   ✓ Files copied: {copied_files}")
-    if existing_files > 0:
-        click.echo(f"   → Files already exist: {existing_files}")
+    if skipped_files > 0:
+        click.echo(f"   → Files skipped: {skipped_files}")
     if failed_files > 0:
         click.echo(f"   ✗ Files failed: {failed_files}")
 
@@ -168,8 +201,8 @@ def init(force: bool, output_dir: str) -> None:
     else:
         click.echo("\n⚠ Some files could not be created. Please check the errors above.")
 
-    if existing_files > 0 and not force:
-        click.echo("\n💡 Tip: Use --force to overwrite existing files")
+    if skipped_files > 0 and not force:
+        click.echo("\n💡 Tip: Use --force to overwrite all existing files without prompting")
 
 
 @cli.command()
