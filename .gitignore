@@ -18,3 +18,5 @@ output/
 
 .DS_Store
 **/streamlit_app/*.json
+
+CLAUDE.local.md
