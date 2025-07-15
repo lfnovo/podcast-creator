@@ -172,7 +172,51 @@ result = await create_podcast(
     episode_name="my_podcast",
     output_dir="output/my_podcast"
 )
+
+# 4. Temperature control for creativity tuning
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="tech_discussion",
+    outline_temperature=0.5,     # More deterministic outline
+    transcript_temperature=0.9,  # More creative dialogue
+    episode_name="my_podcast",
+    output_dir="output/my_podcast"
+)
 ```
+
+### 🌡️ **Temperature Control**
+
+Control AI creativity and consistency using temperature parameters:
+
+```python
+# Temperature ranges from 0.0 to 2.0:
+# - 0.0: Deterministic, consistent, focused
+# - 0.7: Balanced (default)
+# - 2.0: Very creative, varied, experimental
+
+# Fine-tune creativity per generation step
+result = await create_podcast(
+    content="Complex technical topic...",
+    episode_profile="tech_discussion",
+    outline_temperature=0.3,      # Structured, focused outline
+    transcript_temperature=0.8,   # Natural, engaging dialogue
+    episode_name="balanced_creativity"
+)
+
+# Profile-specific defaults with overrides
+result = await create_podcast(
+    content="Creative storytelling...",
+    episode_profile="diverse_panel",  # Has its own temperature defaults
+    transcript_temperature=1.2,      # Override for more creativity
+    episode_name="creative_discussion"
+)
+```
+
+**Temperature Guidelines:**
+- **Outline Generation**: Lower values (0.3-0.7) for structured, consistent outlines
+- **Transcript Generation**: Higher values (0.7-1.2) for natural, engaging dialogue
+- **Educational Content**: Use lower temperatures (0.3-0.6) for accuracy
+- **Entertainment Content**: Use higher temperatures (0.8-1.5) for creativity
 
 ### 🔧 **Custom Episode Profiles**
 
@@ -185,6 +229,8 @@ configure("episode_config", {
         "my_startup_pitch": {
             "speaker_config": "business_analysts",
             "outline_model": "gpt-4o",
+            "outline_temperature": 0.6,        # Focused, structured outline
+            "transcript_temperature": 0.9,     # Engaging, persuasive dialogue
             "default_briefing": "Create an engaging startup pitch...",
             "num_segments": 6
         }
@@ -236,6 +282,7 @@ configure("speakers_config", {
 
 - **🎨 Web Interface**: Complete Streamlit UI for visual podcast creation
 - **🎯 Episode Profiles**: Pre-configured settings for one-liner podcast creation
+- **🌡️ Temperature Control**: Fine-tune AI creativity and consistency per generation step
 - **🔄 LangGraph Workflow**: Advanced state management and parallel processing
 - **👥 Multi-Speaker Support**: Dynamic 1-4 speaker configurations with rich personalities
 - **⚡ Parallel Audio Generation**: API-safe batching with concurrent processing
@@ -410,8 +457,10 @@ result = await create_podcast(
 result = await create_podcast(
     content="Quantum computing...",
     episode_profile="tech_discussion",
-    outline_model="gpt-4o",  # Override default
-    num_segments=6,          # Override default
+    outline_model="gpt-4o",         # Override default
+    outline_temperature=0.4,        # Override default (more focused)
+    transcript_temperature=0.8,     # Override default (more engaging)
+    num_segments=6,                  # Override default
     episode_name="quantum_deep",
     output_dir="output/quantum_deep"
 )
@@ -444,6 +493,13 @@ result = await create_podcast(...)
 | `speakers_config` | `str/dict` | Path to speaker JSON or inline config |
 | `episode_config` | `str/dict` | Path to episode JSON or inline config |
 | `output_dir` | `str` | Default output directory |
+
+### Temperature Parameters
+
+| Parameter | Type | Range | Default | Description |
+|-----------|------|-------|---------|-------------|
+| `outline_temperature` | `float` | 0.0-2.0 | 0.7 | Controls creativity in outline generation. Lower = more structured, Higher = more creative |
+| `transcript_temperature` | `float` | 0.0-2.0 | 0.7 | Controls creativity in dialogue generation. Lower = more consistent, Higher = more varied |
 
 ## 🎭 Speaker Configuration
 

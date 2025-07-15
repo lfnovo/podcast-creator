@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from pathlib import Path
 from typing import Dict
 
@@ -13,6 +14,8 @@ from .core import (
     get_outline_prompter,
     get_transcript_prompter,
     outline_parser,
+    GenerationParams,
+    Transcript,
 )
 from .state import PodcastState
 
@@ -24,12 +27,13 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
     configurable = config.get("configurable", {})
     outline_provider = configurable.get("outline_provider", "openai")
     outline_model_name = configurable.get("outline_model", "gpt-4o-mini")
+    outline_temperature = configurable.get("outline_temperature", 0.7)
 
     # Create outline model
     outline_model = AIFactory.create_language(
         outline_provider,
         outline_model_name,
-        config={"max_tokens": 3000, "structured": {"type": "json"}},
+        config={"max_tokens": 3000, "structured": {"type": "json"}, "temperature": outline_temperature},
     ).to_langchain()
 
     # Generate outline
@@ -49,6 +53,17 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
     outline_preview.content = clean_thinking_content(outline_preview.content)
     outline_result = outline_parser.invoke(outline_preview.content)
 
+    # Create generation parameters metadata
+    generation_params = GenerationParams(
+        provider=outline_provider,
+        model=outline_model_name,
+        temperature=outline_temperature,
+        timestamp=datetime.now().isoformat()
+    )
+    
+    # Attach metadata to outline
+    outline_result.generation_params = generation_params
+
     logger.info(f"Generated outline with {len(outline_result.segments)} segments")
 
     return {"outline": outline_result}
@@ -64,12 +79,13 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
     configurable = config.get("configurable", {})
     transcript_provider: str = configurable.get("transcript_provider", "openai")
     transcript_model_name: str = configurable.get("transcript_model", "gpt-4o-mini")
+    transcript_temperature = configurable.get("transcript_temperature", 0.7)
 
     # Create transcript model
     transcript_model = AIFactory.create_language(
         transcript_provider,
         transcript_model_name,
-        config={"max_tokens": 5000, "structured": {"type": "json"}},
+        config={"max_tokens": 5000, "structured": {"type": "json"}, "temperature": transcript_temperature},
     ).to_langchain()
 
     # Create validated transcript parser
@@ -111,13 +127,29 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
 
     logger.info(f"Generated transcript with {len(transcript)} dialogue segments")
 
-    return {"transcript": transcript}
+    # Create generation parameters metadata
+    generation_params = GenerationParams(
+        provider=transcript_provider,
+        model=transcript_model_name,
+        temperature=transcript_temperature,
+        timestamp=datetime.now().isoformat()
+    )
+    
+    # Create Transcript object with metadata
+    transcript_with_metadata = Transcript(
+        transcript=transcript,
+        generation_params=generation_params
+    )
+
+    return {"transcript": transcript_with_metadata}
 
 
 def route_audio_generation(state: PodcastState, config: RunnableConfig) -> str:
     """Route to sequential batch processing of audio generation"""
     transcript = state["transcript"]
-    total_segments = len(transcript)
+    # Extract dialogue list from Transcript object
+    dialogue_list = transcript.transcript if hasattr(transcript, 'transcript') else transcript
+    total_segments = len(dialogue_list)
 
     logger.info(
         f"Routing {total_segments} dialogue segments for sequential batch processing"
@@ -130,8 +162,10 @@ def route_audio_generation(state: PodcastState, config: RunnableConfig) -> str:
 async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -> Dict:
     """Generate all audio clips using sequential batches to respect API limits"""
     transcript = state["transcript"]
+    # Extract dialogue list from Transcript object
+    dialogue_list = transcript.transcript if hasattr(transcript, 'transcript') else transcript
     output_dir = state["output_dir"]
-    total_segments = len(transcript)
+    total_segments = len(dialogue_list)
     batch_size = 5
 
     assert state.get("speaker_profile") is not None, "speaker_profile must be provided"
@@ -163,7 +197,7 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
         batch_tasks = []
         for i in range(batch_start, batch_end):
             dialogue_info = {
-                "dialogue": transcript[i],
+                "dialogue": dialogue_list[i],
                 "index": i,
                 "output_dir": output_dir,
                 "tts_provider": tts_provider,
@@ -235,5 +269,4 @@ async def combine_audio_node(state: PodcastState, config: RunnableConfig) -> Dic
     final_path = Path(result["combined_audio_path"])
     logger.info(f"Combined audio saved to: {final_path}")
 
-    return {"final_output_file_path": final_path}
     return {"final_output_file_path": final_path}

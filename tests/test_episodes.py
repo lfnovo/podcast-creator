@@ -39,8 +39,10 @@ class TestEpisodeProfile:
         assert profile.speaker_config == "ai_researchers"
         assert profile.outline_provider == "openai"
         assert profile.outline_model == "gpt-4o-mini"
+        assert profile.outline_temperature == 0.7
         assert profile.transcript_provider == "anthropic"
         assert profile.transcript_model == "claude-3-5-sonnet-latest"
+        assert profile.transcript_temperature == 0.7
         assert profile.default_briefing == ""
         assert profile.num_segments == 3
 
@@ -75,6 +77,51 @@ class TestEpisodeProfile:
         
         with pytest.raises(ValueError, match="Model cannot be empty"):
             EpisodeProfile(speaker_config="ai_researchers", transcript_model="")
+
+    def test_episode_profile_temperature_values(self):
+        """Test episode profile with custom temperature values"""
+        profile = EpisodeProfile(
+            speaker_config="ai_researchers",
+            outline_temperature=0.5,
+            transcript_temperature=1.2
+        )
+        
+        assert profile.outline_temperature == 0.5
+        assert profile.transcript_temperature == 1.2
+
+    def test_episode_profile_temperature_validation(self):
+        """Test temperature validation in episode profiles"""
+        # Test valid temperatures
+        profile = EpisodeProfile(
+            speaker_config="ai_researchers",
+            outline_temperature=0.0,
+            transcript_temperature=2.0
+        )
+        assert profile.outline_temperature == 0.0
+        assert profile.transcript_temperature == 2.0
+        
+        # Test invalid temperatures (should be clamped)
+        profile = EpisodeProfile(
+            speaker_config="ai_researchers",
+            outline_temperature=-0.5,
+            transcript_temperature=3.0
+        )
+        assert profile.outline_temperature == 0.0
+        assert profile.transcript_temperature == 2.0
+
+    def test_episode_profile_with_temperature_serialization(self):
+        """Test episode profile serialization includes temperature fields"""
+        profile = EpisodeProfile(
+            speaker_config="ai_researchers",
+            outline_temperature=0.8,
+            transcript_temperature=0.9
+        )
+        
+        serialized = profile.model_dump()
+        assert "outline_temperature" in serialized
+        assert "transcript_temperature" in serialized
+        assert serialized["outline_temperature"] == 0.8
+        assert serialized["transcript_temperature"] == 0.9
 
 
 class TestEpisodeConfig:

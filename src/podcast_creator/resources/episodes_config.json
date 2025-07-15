@@ -7,7 +7,9 @@
       "transcript_provider": "anthropic",
       "transcript_model": "claude-3-5-sonnet-latest",
       "default_briefing": "Create an engaging and informative discussion about technology topics. Focus on making complex concepts accessible while maintaining technical accuracy. Include diverse perspectives and practical implications.",
-      "num_segments": 4
+      "num_segments": 4,
+      "outline_temperature": 0.7,
+      "transcript_temperature": 0.8
     },
     "solo_expert": {
       "speaker_config": "solo_expert",
@@ -16,7 +18,9 @@
       "transcript_provider": "anthropic",
       "transcript_model": "claude-3-5-sonnet-latest",
       "default_briefing": "Create an educational and approachable explanation of the topic. Break down complex concepts into digestible segments and provide clear examples. Maintain an engaging teaching style throughout.",
-      "num_segments": 3
+      "num_segments": 3,
+      "outline_temperature": 0.6,
+      "transcript_temperature": 0.7
     },
     "business_analysis": {
       "speaker_config": "business_analysts",
@@ -25,7 +29,9 @@
       "transcript_provider": "anthropic",
       "transcript_model": "claude-3-5-sonnet-latest",
       "default_briefing": "Provide a comprehensive business analysis covering market implications, strategic considerations, and practical business applications. Focus on actionable insights and real-world impact.",
-      "num_segments": 4
+      "num_segments": 4,
+      "outline_temperature": 0.6,
+      "transcript_temperature": 0.7
     },
     "diverse_panel": {
       "speaker_config": "diverse_panel",
@@ -34,7 +40,9 @@
       "transcript_provider": "anthropic",
       "transcript_model": "claude-3-5-sonnet-latest",
       "default_briefing": "Create a dynamic multi-perspective discussion with diverse viewpoints. Encourage debate and exploration of different angles. Include both optimistic and skeptical perspectives to create engaging dialogue.",
-      "num_segments": 5
+      "num_segments": 5,
+      "outline_temperature": 0.8,
+      "transcript_temperature": 0.9
     }
   }
 }

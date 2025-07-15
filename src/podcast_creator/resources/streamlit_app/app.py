@@ -773,6 +773,30 @@ def show_episode_profiles_page():
                     key="new_episode_transcript_model"
                 )
             
+            # Temperature Settings
+            st.markdown("**🌡️ Temperature Settings**")
+            col1, col2 = st.columns(2)
+            with col1:
+                outline_temperature = st.slider(
+                    "Outline Temperature:",
+                    min_value=0.0,
+                    max_value=2.0,
+                    value=0.7,
+                    step=0.1,
+                    key="new_episode_outline_temp",
+                    help="0.0 = deterministic, 1.0 = balanced, 2.0 = very creative"
+                )
+            with col2:
+                transcript_temperature = st.slider(
+                    "Transcript Temperature:",
+                    min_value=0.0,
+                    max_value=2.0,
+                    value=0.7,
+                    step=0.1,
+                    key="new_episode_transcript_temp",
+                    help="0.0 = deterministic, 1.0 = balanced, 2.0 = very creative"
+                )
+            
             num_segments = st.slider("Number of Segments:", 1, 10, 4, key="new_episode_segments")
             default_briefing = st.text_area(
                 "Default Briefing:", 
@@ -800,8 +824,10 @@ def show_episode_profiles_page():
                             "speaker_config": speaker_config,
                             "outline_model": outline_model,
                             "outline_provider": outline_provider,
+                            "outline_temperature": outline_temperature,
                             "transcript_model": transcript_model,
                             "transcript_provider": transcript_provider,
+                            "transcript_temperature": transcript_temperature,
                             "num_segments": num_segments,
                             "default_briefing": default_briefing
                         }
@@ -910,6 +936,30 @@ def show_episode_profiles_page():
                         key="edit_episode_transcript_model"
                     )
                 
+                # Temperature Settings
+                st.markdown("**🌡️ Temperature Settings**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    outline_temperature = st.slider(
+                        "Outline Temperature:",
+                        min_value=0.0,
+                        max_value=2.0,
+                        value=edit_profile_data.get('outline_temperature', 0.7),
+                        step=0.1,
+                        key="edit_episode_outline_temp",
+                        help="0.0 = deterministic, 1.0 = balanced, 2.0 = very creative"
+                    )
+                with col2:
+                    transcript_temperature = st.slider(
+                        "Transcript Temperature:",
+                        min_value=0.0,
+                        max_value=2.0,
+                        value=edit_profile_data.get('transcript_temperature', 0.7),
+                        step=0.1,
+                        key="edit_episode_transcript_temp",
+                        help="0.0 = deterministic, 1.0 = balanced, 2.0 = very creative"
+                    )
+                
                 num_segments = st.slider(
                     "Number of Segments:", 
                     1, 10, 
@@ -941,8 +991,10 @@ def show_episode_profiles_page():
                                 "speaker_config": speaker_config,
                                 "outline_model": outline_model,
                                 "outline_provider": outline_provider,
+                                "outline_temperature": outline_temperature,
                                 "transcript_model": transcript_model,
                                 "transcript_provider": transcript_provider,
+                                "transcript_temperature": transcript_temperature,
                                 "num_segments": num_segments,
                                 "default_briefing": default_briefing
                             }
@@ -1253,7 +1305,11 @@ def show_generate_podcast_page():
         profile_data = profile_manager.get_episode_profile(episode_profile)
         
         if profile_data:
+            # Display current profile temperature settings
+            outline_temp = profile_data.get('outline_temperature', 0.7)
+            transcript_temp = profile_data.get('transcript_temperature', 0.7)
             st.markdown(f"**Profile Info:** {profile_data.get('default_briefing', 'No description')}")
+            st.markdown(f"**Temperature Settings:** Outline: {outline_temp}, Transcript: {transcript_temp}")
             
             # Override options
             if not use_defaults:
@@ -1273,6 +1329,30 @@ def show_generate_podcast_page():
                         "Transcript Model:",
                         value=profile_data.get('transcript_model', 'gpt-4o')
                     )
+                    
+                    # Temperature controls
+                    st.markdown("**🌡️ Temperature Settings**")
+                    col_temp1, col_temp2 = st.columns(2)
+                    
+                    with col_temp1:
+                        outline_temperature = st.slider(
+                            "Outline Temperature:",
+                            min_value=0.0,
+                            max_value=2.0,
+                            value=profile_data.get('outline_temperature', 0.7),
+                            step=0.1,
+                            help="0.0 = deterministic, 1.0 = balanced, 2.0 = very creative"
+                        )
+                    
+                    with col_temp2:
+                        transcript_temperature = st.slider(
+                            "Transcript Temperature:",
+                            min_value=0.0,
+                            max_value=2.0,
+                            value=profile_data.get('transcript_temperature', 0.7),
+                            step=0.1,
+                            help="0.0 = deterministic, 1.0 = balanced, 2.0 = very creative"
+                        )
                     
                     num_segments = st.slider(
                         "Number of Segments:",
@@ -1295,6 +1375,8 @@ def show_generate_podcast_page():
                 speaker_config = profile_data['speaker_config']
                 outline_model = profile_data.get('outline_model', 'gpt-4o')
                 transcript_model = profile_data.get('transcript_model', 'gpt-4o')
+                outline_temperature = profile_data.get('outline_temperature', 0.7)
+                transcript_temperature = profile_data.get('transcript_temperature', 0.7)
                 num_segments = profile_data.get('num_segments', 4)
                 briefing = profile_data.get('default_briefing', '')
                 briefing_suffix = ""
@@ -1426,9 +1508,7 @@ def show_generate_podcast_page():
                 
                 # Import podcast creator
                 try:
-                    from podcast_creator import create_podcast, configure
-                    # Configure to use current working directory
-                    configure(working_dir=str(WORKING_DIR))
+                    from podcast_creator import create_podcast
                     podcast_creator_available = True
                 except ImportError:
                     podcast_creator_available = False
@@ -1453,6 +1533,8 @@ def show_generate_podcast_page():
                             "speaker_config": speaker_config,
                             "outline_model": outline_model,
                             "transcript_model": transcript_model,
+                            "outline_temperature": outline_temperature,
+                            "transcript_temperature": transcript_temperature,
                             "num_segments": num_segments,
                             "briefing": st.session_state.custom_briefing
                         })
@@ -1635,8 +1717,43 @@ def show_episode_library_page():
                                 with open(selected_episode.transcript_file, 'r', encoding='utf-8') as f:
                                     transcript_data = json.load(f)
                                 
-                                if isinstance(transcript_data, list):
-                                    for i, segment in enumerate(transcript_data):
+                                # Show generation metadata if available
+                                if isinstance(transcript_data, dict) and 'generation_params' in transcript_data:
+                                    gen_params = transcript_data['generation_params']
+                                    st.markdown("**🌡️ Generation Parameters:**")
+                                    col1, col2, col3, col4 = st.columns(4)
+                                    with col1:
+                                        st.metric("Provider", gen_params.get('provider', 'N/A'))
+                                    with col2:
+                                        st.metric("Model", gen_params.get('model', 'N/A'))
+                                    with col3:
+                                        st.metric("Temperature", gen_params.get('temperature', 'N/A'))
+                                    with col4:
+                                        timestamp = gen_params.get('timestamp', 'N/A')
+                                        if timestamp != 'N/A':
+                                            try:
+                                                from datetime import datetime
+                                                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                                                formatted_time = dt.strftime('%Y-%m-%d %H:%M')
+                                                st.metric("Generated", formatted_time)
+                                            except:
+                                                st.metric("Generated", timestamp)
+                                        else:
+                                            st.metric("Generated", timestamp)
+                                    st.markdown("---")
+                                    # Extract transcript list from new format
+                                    transcript_list = transcript_data.get('transcript', [])
+                                elif isinstance(transcript_data, dict) and 'transcript' in transcript_data:
+                                    # New format without metadata
+                                    transcript_list = transcript_data.get('transcript', [])
+                                elif isinstance(transcript_data, list):
+                                    # Old format
+                                    transcript_list = transcript_data
+                                else:
+                                    transcript_list = []
+                                
+                                if transcript_list:
+                                    for i, segment in enumerate(transcript_list):
                                         if isinstance(segment, dict):
                                             speaker = segment.get('speaker', f'Speaker {i+1}')
                                             # Try multiple possible field names for the text content
@@ -1682,6 +1799,32 @@ def show_episode_library_page():
                             try:
                                 with open(selected_episode.outline_file, 'r', encoding='utf-8') as f:
                                     outline_data = json.load(f)
+                                
+                                # Show generation metadata if available
+                                if isinstance(outline_data, dict) and 'generation_params' in outline_data:
+                                    gen_params = outline_data['generation_params']
+                                    st.markdown("**🌡️ Generation Parameters:**")
+                                    col1, col2, col3, col4 = st.columns(4)
+                                    with col1:
+                                        st.metric("Provider", gen_params.get('provider', 'N/A'))
+                                    with col2:
+                                        st.metric("Model", gen_params.get('model', 'N/A'))
+                                    with col3:
+                                        st.metric("Temperature", gen_params.get('temperature', 'N/A'))
+                                    with col4:
+                                        timestamp = gen_params.get('timestamp', 'N/A')
+                                        if timestamp != 'N/A':
+                                            try:
+                                                from datetime import datetime
+                                                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                                                formatted_time = dt.strftime('%Y-%m-%d %H:%M')
+                                                st.metric("Generated", formatted_time)
+                                            except:
+                                                st.metric("Generated", timestamp)
+                                        else:
+                                            st.metric("Generated", timestamp)
+                                    st.markdown("---")
+                                
                                 st.json(outline_data)
                             except Exception as e:
                                 st.error(f"Error loading outline: {str(e)}")

@@ -233,6 +233,32 @@ def validate_voice_ids(speaker_config: Dict[str, Any], provider: str) -> bool:
         raise ValueError(f"Error validating voice IDs: {e}")
 
 
+def validate_temperature(temperature: float) -> float:
+    """
+    Validate and clamp temperature to valid range [0.0, 2.0].
+
+    Args:
+        temperature: Temperature value to validate
+
+    Returns:
+        Clamped temperature value within valid range
+
+    Raises:
+        TypeError: If temperature is not a number
+    """
+    if not isinstance(temperature, (int, float)):
+        raise TypeError(f"Temperature must be a number, got {type(temperature).__name__}")
+    
+    if temperature < 0.0:
+        logger.warning(f"Temperature {temperature} below minimum, clamping to 0.0")
+        return 0.0
+    elif temperature > 2.0:
+        logger.warning(f"Temperature {temperature} above maximum, clamping to 2.0")
+        return 2.0
+    
+    return float(temperature)
+
+
 def validate_configuration_completeness(config: Dict[str, Any]) -> bool:
     """
     Validate that configuration is complete for podcast generation.
