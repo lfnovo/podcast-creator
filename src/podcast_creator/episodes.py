@@ -4,6 +4,8 @@ from typing import Dict, Union
 
 from pydantic import BaseModel, Field, field_validator
 
+from .validators import validate_temperature
+
 
 class EpisodeProfile(BaseModel):
     """Individual episode profile configuration"""
@@ -23,6 +25,12 @@ class EpisodeProfile(BaseModel):
         "", description="Default briefing for this episode type"
     )
     num_segments: int = Field(3, description="Number of podcast segments")
+    outline_temperature: float = Field(
+        0.7, description="Temperature for outline generation (0.0-2.0)"
+    )
+    transcript_temperature: float = Field(
+        0.7, description="Temperature for transcript generation (0.0-2.0)"
+    )
 
     @field_validator("speaker_config")
     @classmethod
@@ -51,6 +59,11 @@ class EpisodeProfile(BaseModel):
         if not v or len(v.strip()) == 0:
             raise ValueError("Model cannot be empty")
         return v.strip()
+
+    @field_validator("outline_temperature", "transcript_temperature")
+    @classmethod
+    def validate_temperatures(cls, v):
+        return validate_temperature(v)
 
 
 class EpisodeConfig(BaseModel):

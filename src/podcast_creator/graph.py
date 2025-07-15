@@ -15,6 +15,7 @@ from .nodes import (
 from .speakers import load_speaker_config
 from .episodes import load_episode_config
 from .state import PodcastState
+from .validators import validate_temperature
 
 logger.info("Creating podcast generation graph")
 
@@ -52,6 +53,8 @@ async def create_podcast(
     num_segments: Optional[int] = None,
     episode_profile: Optional[str] = None,
     briefing_suffix: Optional[str] = None,
+    outline_temperature: Optional[float] = None,
+    transcript_temperature: Optional[float] = None,
 ) -> Dict:
     """
     High-level function to create a podcast using the LangGraph workflow
@@ -69,6 +72,8 @@ async def create_podcast(
         num_segments: Number of podcast segments
         episode_profile: Episode profile name to use for defaults
         briefing_suffix: Additional briefing text to append to profile default
+        outline_temperature: Temperature for outline generation (0.0-2.0, default: 0.7)
+        transcript_temperature: Temperature for transcript generation (0.0-2.0, default: 0.7)
 
     Returns:
         Dict with results including final audio path
@@ -84,6 +89,12 @@ async def create_podcast(
         transcript_provider = transcript_provider or episode_config.transcript_provider
         transcript_model = transcript_model or episode_config.transcript_model
         num_segments = num_segments or episode_config.num_segments
+        
+        # Use episode profile temperature defaults if not explicitly provided
+        if outline_temperature is None:
+            outline_temperature = episode_config.outline_temperature
+        if transcript_temperature is None:
+            transcript_temperature = episode_config.transcript_temperature
         
         # Resolve briefing with episode profile logic
         if briefing:
@@ -115,6 +126,17 @@ async def create_podcast(
     if not resolved_briefing:
         raise ValueError("briefing is required (either directly, via episode_profile, or with briefing_suffix)")
     
+    # Validate and set temperature parameters
+    if outline_temperature is not None:
+        outline_temperature = validate_temperature(outline_temperature)
+    else:
+        outline_temperature = 0.7  # Default temperature
+    
+    if transcript_temperature is not None:
+        transcript_temperature = validate_temperature(transcript_temperature)
+    else:
+        transcript_temperature = 0.7  # Default temperature
+    
     # Load speaker profile
     speaker_profile = load_speaker_config(speaker_config)
 
@@ -143,6 +165,8 @@ async def create_podcast(
             "outline_model": outline_model,
             "transcript_provider": transcript_provider,
             "transcript_model": transcript_model,
+            "outline_temperature": outline_temperature,
+            "transcript_temperature": transcript_temperature,
         }
     }
 
@@ -156,9 +180,15 @@ async def create_podcast(
 
     if result["transcript"]:
         transcript_path = output_path / "transcript.json"
-        transcript_path.write_text(
-            json.dumps([d.model_dump() for d in result["transcript"]], indent=2)
-        )
+        # Handle both old format (list of Dialogue) and new format (Transcript object)
+        if hasattr(result["transcript"], 'model_dump_json'):
+            # New format: Transcript object with metadata
+            transcript_path.write_text(result["transcript"].model_dump_json(indent=2))
+        else:
+            # Old format: list of Dialogue objects (fallback for backward compatibility)
+            transcript_path.write_text(
+                json.dumps([d.model_dump() for d in result["transcript"]], indent=2)
+            )
 
     return {
         "outline": result["outline"],

@@ -1,7 +1,8 @@
 import re
 import uuid
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from loguru import logger
@@ -80,6 +81,13 @@ def clean_thinking_content(content: str) -> str:
     return cleaned_content
 
 
+class GenerationParams(BaseModel):
+    provider: str = Field(..., description="AI provider used (e.g., 'openai', 'anthropic')")
+    model: str = Field(..., description="AI model used (e.g., 'gpt-4o-mini', 'claude-3-5-sonnet-latest')")
+    temperature: float = Field(..., description="Temperature value used for generation")
+    timestamp: str = Field(..., description="ISO timestamp when generation completed")
+
+
 class Segment(BaseModel):
     name: str = Field(..., description="Name of the segment")
     description: str = Field(..., description="Description of the segment")
@@ -90,9 +98,13 @@ class Segment(BaseModel):
 
 class Outline(BaseModel):
     segments: list[Segment] = Field(..., description="List of segments")
+    generation_params: Optional[GenerationParams] = Field(None, description="Parameters used for outline generation")
 
     def model_dump(self, **kwargs) -> Dict[str, Any]:
-        return {"segments": [segment.model_dump(**kwargs) for segment in self.segments]}
+        result = {"segments": [segment.model_dump(**kwargs) for segment in self.segments]}
+        if self.generation_params:
+            result["generation_params"] = self.generation_params.model_dump(**kwargs)
+        return result
 
 
 class Dialogue(BaseModel):
@@ -109,14 +121,18 @@ class Dialogue(BaseModel):
 
 class Transcript(BaseModel):
     transcript: list[Dialogue] = Field(..., description="Transcript")
+    generation_params: Optional[GenerationParams] = Field(None, description="Parameters used for transcript generation")
 
     def model_dump(self, **kwargs) -> Dict[str, Any]:
         # Custom serialization: convert list of Dialogue models to list of dicts
-        return {
+        result = {
             "transcript": [
                 dialogue.model_dump(**kwargs) for dialogue in self.transcript
             ]
         }
+        if self.generation_params:
+            result["generation_params"] = self.generation_params.model_dump(**kwargs)
+        return result
 
 
 def create_validated_transcript_parser(valid_speaker_names: List[str]):

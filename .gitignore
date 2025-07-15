@@ -11,7 +11,7 @@ wheels/
 output/
 .env
 
-.claude/
+.claude/logs
 .git.backup
 
 .vscode/
