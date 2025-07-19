@@ -237,6 +237,50 @@ If you need help:
 3. Ask in the issue comments
 4. Be patient - maintainers have other responsibilities too
 
+## 🚀 Release Process
+
+### Version Numbering
+
+We follow [Semantic Versioning](https://semver.org/):
+- **MAJOR** version for incompatible API changes
+- **MINOR** version for backwards-compatible functionality additions  
+- **PATCH** version for backwards-compatible bug fixes
+
+### Creating a Release
+
+Releases are managed by maintainers. The process:
+
+1. **Update version in `pyproject.toml`**
+   ```bash
+   # Edit pyproject.toml and update version = "X.Y.Z"
+   ```
+
+2. **Update CHANGELOG** (if maintained)
+   - List all changes since last release
+   - Credit contributors
+
+3. **Create and push version tag**
+   ```bash
+   make tag
+   # This automatically creates and pushes a tag based on pyproject.toml version
+   ```
+
+4. **GitHub Release**
+   - GitHub Actions will automatically create a release when a tag is pushed
+   - Add release notes summarizing changes
+
+5. **PyPI Publishing**
+   - Package is automatically published to PyPI via GitHub Actions
+
+### Pre-release Checklist
+
+Before creating a release:
+- [ ] All tests pass (`make test`)
+- [ ] Code passes linting (`make lint` and `make ruff`)
+- [ ] Documentation is updated
+- [ ] Breaking changes are clearly documented
+- [ ] Version number follows semantic versioning
+
 ## 🙏 Recognition
 
 Contributors will be:
