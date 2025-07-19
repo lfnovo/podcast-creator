@@ -4,13 +4,12 @@ Episode management utilities for the Podcast Creator Studio.
 Handles episode discovery, metadata extraction, and file operations.
 """
 
-import os
 import json
 import shutil
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import streamlit as st
 
 try:

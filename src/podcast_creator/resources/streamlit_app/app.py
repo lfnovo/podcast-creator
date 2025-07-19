@@ -9,7 +9,6 @@ import nest_asyncio
 nest_asyncio.apply()
 
 import streamlit as st
-import os
 import sys
 import json
 from pathlib import Path
@@ -355,7 +354,7 @@ def show_speaker_profiles_page():
                 col1, col2 = st.columns([4, 1])
                 
                 with col1:
-                    speaker_name = st.text_input(f"Name:", key=f"new_speaker_name_{i}", value=speaker.get('name', ''))
+                    speaker_name = st.text_input("Name:", key=f"new_speaker_name_{i}", value=speaker.get('name', ''))
                     
                     # Voice selection with provider-specific voices
                     voice_id = VoiceProvider.render_voice_selector(
@@ -371,8 +370,8 @@ def show_speaker_profiles_page():
                         with st.expander("🎵 Voice Preview"):
                             VoiceProvider.render_voice_preview(tts_provider, voice_id)
                     
-                    backstory = st.text_area(f"Backstory:", key=f"new_backstory_{i}", value=speaker.get('backstory', ''))
-                    personality = st.text_area(f"Personality:", key=f"new_personality_{i}", value=speaker.get('personality', ''))
+                    backstory = st.text_area("Backstory:", key=f"new_backstory_{i}", value=speaker.get('backstory', ''))
+                    personality = st.text_area("Personality:", key=f"new_personality_{i}", value=speaker.get('personality', ''))
                     
                     # Update speaker data
                     st.session_state.new_speakers[i] = {
@@ -384,7 +383,7 @@ def show_speaker_profiles_page():
                 
                 with col2:
                     if len(st.session_state.new_speakers) > 1:
-                        if st.button(f"🗑️", key=f"new_remove_speaker_{i}"):
+                        if st.button("🗑️", key=f"new_remove_speaker_{i}"):
                             st.session_state.new_speakers.pop(i)
                             st.rerun()
                 
@@ -482,7 +481,7 @@ def show_speaker_profiles_page():
                     
                     with col1:
                         speaker_name = st.text_input(
-                            f"Name:", 
+                            "Name:", 
                             key=f"edit_speaker_name_{i}", 
                             value=speaker.get('name', '')
                         )
@@ -502,12 +501,12 @@ def show_speaker_profiles_page():
                                 VoiceProvider.render_voice_preview(tts_provider, voice_id)
                         
                         backstory = st.text_area(
-                            f"Backstory:", 
+                            "Backstory:", 
                             key=f"edit_backstory_{i}", 
                             value=speaker.get('backstory', '')
                         )
                         personality = st.text_area(
-                            f"Personality:", 
+                            "Personality:", 
                             key=f"edit_personality_{i}", 
                             value=speaker.get('personality', '')
                         )
@@ -522,7 +521,7 @@ def show_speaker_profiles_page():
                     
                     with col2:
                         if len(st.session_state.edit_speakers) > 1:
-                            if st.button(f"🗑️", key=f"edit_remove_speaker_{i}"):
+                            if st.button("🗑️", key=f"edit_remove_speaker_{i}"):
                                 st.session_state.edit_speakers.pop(i)
                                 st.rerun()
                     
@@ -1155,7 +1154,7 @@ def show_generate_podcast_page():
                                         'source': f"URL: {url}"
                                     }
                                     st.session_state.content_pieces.append(content_piece)
-                                    st.success(f"✅ Added content from URL")
+                                    st.success("✅ Added content from URL")
                                     st.rerun()
                             else:
                                 st.error("⚠️ content-core library not available. Install it with: `pip install content-core`")
@@ -1334,7 +1333,7 @@ def show_generate_podcast_page():
         # Show briefing preview
         if custom_briefing:
             with st.expander("📋 Briefing Preview"):
-                st.markdown(f"**Final briefing that will be sent to the AI:**")
+                st.markdown("**Final briefing that will be sent to the AI:**")
                 final_briefing = custom_briefing
                 if not use_defaults and briefing_suffix:
                     final_briefing += f"\n\n{briefing_suffix}"

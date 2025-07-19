@@ -5,9 +5,7 @@ Handles voice selection for different TTS providers.
 """
 
 import streamlit as st
-from typing import Dict, List, Tuple, Optional
-import requests
-import json
+from typing import Dict, Optional
 
 try:
     from esperanto import AIFactory
