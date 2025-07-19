@@ -2,9 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
-import pytest
 from click.testing import CliRunner
 
 from podcast_creator.cli import cli

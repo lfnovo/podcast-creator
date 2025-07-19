@@ -633,11 +633,20 @@ Check the `examples/` directory for:
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
+
+- 🚀 Getting started with development
+- 📋 Our pull request process  
+- 🧪 Testing guidelines
+- 🎨 Code style and standards
+- 🐛 How to report bugs
+- 💡 How to suggest new features
+
+Quick links:
+- [Good First Issues](https://github.com/lfnovo/podcast-creator/labels/good%20first%20issue)
+- [Contributing Guide](CONTRIBUTING.md)
+- [Report a Bug](https://github.com/lfnovo/podcast-creator/issues/new?template=bug_report.md)
+- [Request a Feature](https://github.com/lfnovo/podcast-creator/issues/new?template=feature_request.md)
 
 ## 📄 License
 

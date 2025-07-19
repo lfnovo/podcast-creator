@@ -1,6 +1,6 @@
 from operator import add
 from pathlib import Path
-from typing import Annotated, List, Optional, TypedDict, Union, Dict
+from typing import Annotated, List, Optional, TypedDict, Union
 
 from .core import Dialogue, Outline
 from .speakers import SpeakerProfile

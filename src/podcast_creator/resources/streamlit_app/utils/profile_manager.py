@@ -5,9 +5,8 @@ Handles CRUD operations for speaker and episode profiles.
 """
 
 import json
-import os
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 import streamlit as st
 from copy import deepcopy
 

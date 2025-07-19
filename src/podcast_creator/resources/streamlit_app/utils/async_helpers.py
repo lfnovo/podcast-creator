@@ -224,7 +224,7 @@ def run_async_with_progress(
         
         return result
         
-    except Exception as e:
+    except Exception:
         # Clean up progress indicators on error
         progress_bar.empty()
         status_text.empty()

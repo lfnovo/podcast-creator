@@ -5,8 +5,7 @@ Handles content extraction from various sources using content-core library.
 """
 
 import asyncio
-from typing import Optional, Union, Dict, Any, List
-import streamlit as st
+from typing import Union, Dict, Any, List
 import requests
 from pathlib import Path
 

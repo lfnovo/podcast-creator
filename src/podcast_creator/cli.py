@@ -246,7 +246,7 @@ def check_dependencies_and_init() -> bool:
     for item in missing_items:
         click.echo(f"   ✗ {item}")
     
-    click.echo(f"\nTo use the UI, you need to initialize podcast-creator in this directory.")
+    click.echo("\nTo use the UI, you need to initialize podcast-creator in this directory.")
     
     if click.confirm("Would you like to run 'podcast-creator init' now?"):
         click.echo("\n🔄 Running initialization...")
@@ -336,7 +336,6 @@ def ui(port: int, host: str, skip_init_check: bool) -> None:
             if app_resource.is_file():
                 # Extract to temp directory for execution
                 import tempfile
-                import shutil
                 
                 temp_dir = Path(tempfile.mkdtemp(prefix="podcast-creator-ui-"))
                 
@@ -362,7 +361,7 @@ def ui(port: int, host: str, skip_init_check: bool) -> None:
                 copy_resource_dir(streamlit_resources, streamlit_dir)
                 app_file = streamlit_dir / "app.py"
                 
-        except Exception as e:
+        except Exception:
             # Fall back to looking for local development copy
             possible_paths = [
                 current_dir / "streamlit_app" / "app.py",
@@ -381,7 +380,7 @@ def ui(port: int, host: str, skip_init_check: bool) -> None:
             sys.exit(1)
         
         # Start Streamlit
-        click.echo(f"🚀 Starting Podcast Creator Studio...")
+        click.echo("🚀 Starting Podcast Creator Studio...")
         click.echo(f"   URL: http://{host}:{port}")
         click.echo(f"   Working directory: {current_dir}")
         click.echo(f"   App file: {app_file}")
