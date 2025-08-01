@@ -1,4 +1,5 @@
 import asyncio
+import os
 from pathlib import Path
 from typing import Dict
 
@@ -132,7 +133,10 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
     transcript = state["transcript"]
     output_dir = state["output_dir"]
     total_segments = len(transcript)
-    batch_size = 5
+    
+    # Get batch size from environment variable, default to 5
+    batch_size = int(os.getenv("TTS_BATCH_SIZE", "5"))
+    logger.info(f"Using TTS batch size: {batch_size}")
 
     assert state.get("speaker_profile") is not None, "speaker_profile must be provided"
 

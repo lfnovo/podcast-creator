@@ -554,11 +554,25 @@ The interface automatically detects missing dependencies and offers to run initi
 
 ## 🚀 Performance
 
-- **⚡ Parallel Processing**: 5 concurrent audio clips per batch
+- **⚡ Parallel Processing**: 5 concurrent audio clips per batch (configurable)
 - **🔄 API-Safe Batching**: Respects provider rate limits
 - **📊 Scalable**: Handles 30+ dialogue segments efficiently
 - **⏱️ Fast Generation**: ~2-3 minutes for typical podcasts
 - **🎯 Optimized Workflow**: Smart resource management
+
+### ⚠️ Rate Limiting Configuration
+
+If you encounter errors like `ElevenLabs API error: Too many concurrent requests`, you can adjust the parallel processing batch size:
+
+```bash
+# In your .env file
+TTS_BATCH_SIZE=2  # Reduce from default 5 to 2 for ElevenLabs free plan
+```
+
+This is particularly useful for:
+- **ElevenLabs Free Plan**: Limited to 2 concurrent requests
+- **Other TTS providers** with stricter rate limits
+- **Debugging**: Set to 1 for sequential processing
 
 ## 🧪 Development
 

@@ -20,3 +20,4 @@ output/
 **/streamlit_app/*.json
 
 CLAUDE.local.md
+claude-logs
