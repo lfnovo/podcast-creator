@@ -71,8 +71,8 @@ jobs:
         WHEEL_FILE=$(ls dist/*.whl)
         echo "Wheel: $WHEEL_FILE"
 
-        # Extract file list and check for duplicates
-        unzip -l "$WHEEL_FILE" | awk '{print $4}' | sort | uniq -d > duplicates.txt
+        # Extract file list and check for duplicates (skip header/footer lines)
+        unzip -l "$WHEEL_FILE" | tail -n +4 | head -n -2 | awk '{print $4}' | grep -v '^$' | sort | uniq -d > duplicates.txt
 
         if [ -s duplicates.txt ]; then
           echo "❌ ERROR: Found duplicate files in wheel:"
