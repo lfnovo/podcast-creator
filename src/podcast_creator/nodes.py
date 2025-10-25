@@ -101,6 +101,7 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
             "turns": turns,
             "speakers": speaker_profile.speakers,
             "speaker_names": speaker_names,
+            "transcript": transcript,
         }
 
         transcript_prompt = get_transcript_prompter()
