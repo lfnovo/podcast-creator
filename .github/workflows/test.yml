@@ -41,4 +41,63 @@ jobs:
         uv sync --all-extras
     
     - name: Run tests
-      run: uv run pytest -v 
+      run: uv run pytest -v
+
+  build-wheel:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.12"
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Build wheel
+      run: |
+        rm -rf dist
+        uv build
+        echo "✅ Wheel built successfully"
+
+    - name: Check for duplicate files in wheel
+      run: |
+        echo "📦 Checking wheel contents for duplicates..."
+        WHEEL_FILE=$(ls dist/*.whl)
+        echo "Wheel: $WHEEL_FILE"
+
+        # Extract file list and check for duplicates (skip header/footer lines)
+        unzip -l "$WHEEL_FILE" | tail -n +4 | head -n -2 | awk '{print $4}' | grep -v '^$' | sort | uniq -d > duplicates.txt
+
+        if [ -s duplicates.txt ]; then
+          echo "❌ ERROR: Found duplicate files in wheel:"
+          cat duplicates.txt
+          exit 1
+        else
+          echo "✅ No duplicate files found"
+        fi
+
+    - name: Verify wheel installation
+      run: |
+        echo "🔧 Testing wheel installation..."
+        uv venv test-env
+        source test-env/bin/activate
+        uv pip install dist/*.whl
+
+        # Verify the package can be imported
+        python -c "import podcast_creator; print(f'✅ Package version: {podcast_creator.__version__}')"
+
+        # Verify CLI is available
+        podcast-creator --version
+        echo "✅ Wheel installation successful"
+
+    - name: List wheel contents
+      if: always()
+      run: |
+        echo "📋 Wheel contents:"
+        unzip -l dist/*.whl
