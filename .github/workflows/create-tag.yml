@@ -12,6 +12,8 @@ jobs:
   create-tag:
     runs-on: ubuntu-latest
     if: github.event.inputs.confirm == 'yes'
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
