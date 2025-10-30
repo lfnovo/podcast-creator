@@ -21,7 +21,11 @@ logger.info("Creating podcast generation graph")
 
 def create_workflow_graph():
     """
-    Create the StateGraph for generating a podcast
+    Create a LangGraph StateGraph for generating a podcast
+    Defines nodes for each step of the podcast generation process
+
+    Edges are defined to control the flow of the workflow.
+    The graph is compiled into a callable LangGraph graph object.
     """
     # Define the graph
     workflow = StateGraph(PodcastState)

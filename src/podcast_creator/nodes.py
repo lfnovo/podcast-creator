@@ -118,7 +118,9 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
 
 
 def route_audio_generation(state: PodcastState, config: RunnableConfig) -> str:
-    """Route to sequential batch processing of audio generation"""
+    """
+    Optionally route to sequential batch processing of audio generation
+    """
 
     config = config.get("configurable", {})
     generate_audio = config.get("generate_audio", True)
@@ -126,7 +128,7 @@ def route_audio_generation(state: PodcastState, config: RunnableConfig) -> str:
     if not generate_audio:
         logger.info("Terminating early due to configuration")
         return END
-    
+
     transcript = state["transcript"]
     total_segments = len(transcript)
 
@@ -143,7 +145,7 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
     transcript = state["transcript"]
     output_dir = state["output_dir"]
     total_segments = len(transcript)
-    
+
     # Get batch size from environment variable, default to 5
     batch_size = int(os.getenv("TTS_BATCH_SIZE", "5"))
     logger.info(f"Using TTS batch size: {batch_size}")
