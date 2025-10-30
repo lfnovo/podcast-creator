@@ -37,7 +37,8 @@ async def main():
         outline_model="gpt-4o-mini",
         transcript_provider="anthropic",
         transcript_model="claude-3-5-sonnet-latest",
-        num_segments=3
+        num_segments=3,
+        generate_audio=True
     )
     
     print("✅ Podcast generated successfully!")

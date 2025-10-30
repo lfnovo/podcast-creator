@@ -18,25 +18,36 @@ from .state import PodcastState
 
 logger.info("Creating podcast generation graph")
 
-# Define the graph
-workflow = StateGraph(PodcastState)
 
-# Add nodes
-workflow.add_node("generate_outline", generate_outline_node)
-workflow.add_node("generate_transcript", generate_transcript_node)
-workflow.add_node("generate_all_audio", generate_all_audio_node)
-workflow.add_node("combine_audio", combine_audio_node)
+def create_workflow():
+    """
+    Create the StateGraph for generating a podcast
+    """
+    # Define the graph
+    workflow = StateGraph(PodcastState)
+    logger.info("Generating workflow graph")
 
-# Define edges
-workflow.add_edge(START, "generate_outline")
-workflow.add_edge("generate_outline", "generate_transcript")
-workflow.add_conditional_edges(
-    "generate_transcript", route_audio_generation, ["generate_all_audio"]
-)
-workflow.add_edge("generate_all_audio", "combine_audio")
-workflow.add_edge("combine_audio", END)
+    # Add nodes
+    workflow.add_node("generate_outline", generate_outline_node)
+    workflow.add_node("generate_transcript", generate_transcript_node)
+    workflow.add_node("generate_all_audio", generate_all_audio_node)
+    workflow.add_node("combine_audio", combine_audio_node)
 
-graph = workflow.compile()
+    # Define edges
+    workflow.add_edge(START, "generate_outline")
+    workflow.add_edge("generate_outline", "generate_transcript")
+
+    workflow.add_conditional_edges(
+        "generate_transcript", route_audio_generation, ["generate_all_audio", END]
+    )
+    workflow.add_edge("generate_all_audio", "combine_audio")
+    workflow.add_edge("combine_audio", END)
+
+    graph = workflow.compile()
+
+    logger.info(f"Workflow graph compiled with {len(graph.get_graph().edges)} edges")
+    return graph
+    
 
 
 async def create_podcast(
@@ -52,6 +63,7 @@ async def create_podcast(
     num_segments: Optional[int] = None,
     episode_profile: Optional[str] = None,
     briefing_suffix: Optional[str] = None,
+    generate_audio: Optional[bool] = True,
 ) -> Dict:
     """
     High-level function to create a podcast using the LangGraph workflow
@@ -69,6 +81,7 @@ async def create_podcast(
         num_segments: Number of podcast segments
         episode_profile: Episode profile name to use for defaults
         briefing_suffix: Additional briefing text to append to profile default
+        generate_audio: Whether to generate audio (optional, defaults to True)
 
     Returns:
         Dict with results including final audio path
@@ -84,7 +97,8 @@ async def create_podcast(
         transcript_provider = transcript_provider or episode_config.transcript_provider
         transcript_model = transcript_model or episode_config.transcript_model
         num_segments = num_segments or episode_config.num_segments
-        
+        generate_audio = generate_audio or episode_config.generate_audio
+
         # Resolve briefing with episode profile logic
         if briefing:
             # Explicit briefing overrides everything
@@ -104,6 +118,7 @@ async def create_podcast(
         transcript_model = transcript_model or "claude-3-5-sonnet-latest"
         num_segments = num_segments or 3
         resolved_briefing = briefing or ""
+        generate_audio = generate_audio
     
     # Validate required parameters
     if not episode_name:
@@ -143,10 +158,12 @@ async def create_podcast(
             "outline_model": outline_model,
             "transcript_provider": transcript_provider,
             "transcript_model": transcript_model,
+            "generate_audio": generate_audio,
         }
     }
 
     # Create and run the graph
+    graph = create_workflow()
     result = await graph.ainvoke(initial_state, config=config)
 
     # Save outputs
@@ -164,6 +181,6 @@ async def create_podcast(
         "outline": result["outline"],
         "transcript": result["transcript"],
         "final_output_file_path": result["final_output_file_path"],
-        "audio_clips_count": len(result["audio_clips"]),
+        "audio_clips_count": 0 if not generate_audio else len(result["audio_clips"]),
         "output_dir": output_path,
     }

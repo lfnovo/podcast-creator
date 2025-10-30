@@ -5,6 +5,7 @@ from typing import Dict
 
 from esperanto import AIFactory
 from langchain_core.runnables import RunnableConfig
+from langgraph.graph import END
 from loguru import logger
 
 from .core import (
@@ -118,6 +119,14 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
 
 def route_audio_generation(state: PodcastState, config: RunnableConfig) -> str:
     """Route to sequential batch processing of audio generation"""
+
+    config = config.get("configurable", {})
+    generate_audio = config.get("generate_audio", True)
+
+    if not generate_audio:
+        logger.info("Terminating early due to configuration")
+        return END
+    
     transcript = state["transcript"]
     total_segments = len(transcript)
 
@@ -240,5 +249,4 @@ async def combine_audio_node(state: PodcastState, config: RunnableConfig) -> Dic
     final_path = Path(result["combined_audio_path"])
     logger.info(f"Combined audio saved to: {final_path}")
 
-    return {"final_output_file_path": final_path}
     return {"final_output_file_path": final_path}
