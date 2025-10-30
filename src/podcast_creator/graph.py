@@ -19,7 +19,7 @@ from .state import PodcastState
 logger.info("Creating podcast generation graph")
 
 
-def create_workflow():
+def create_workflow_graph():
     """
     Create the StateGraph for generating a podcast
     """
@@ -45,7 +45,6 @@ def create_workflow():
 
     graph = workflow.compile()
 
-    logger.info(f"Workflow graph compiled with {len(graph.get_graph().edges)} edges")
     return graph
     
 
@@ -163,7 +162,7 @@ async def create_podcast(
     }
 
     # Create and run the graph
-    graph = create_workflow()
+    graph = create_workflow_graph()
     result = await graph.ainvoke(initial_state, config=config)
 
     # Save outputs

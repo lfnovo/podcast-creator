@@ -15,7 +15,7 @@ from .core import (
     parse_thinking_content,
 )
 from .graph import PodcastState, create_podcast
-from .graph import create_workflow
+from .graph import create_workflow_graph
 from .speakers import Speaker, SpeakerConfig, SpeakerProfile, load_speaker_config
 from .episodes import EpisodeProfile, EpisodeConfig, load_episode_config
 
@@ -46,7 +46,7 @@ __all__ = [
     "Transcript",
     # LangGraph functions
     "create_podcast",
-    "create_workflow",
+    "create_workflow_graph",
     "PodcastState",
     # Speaker models
     "Speaker",
