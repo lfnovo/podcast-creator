@@ -47,6 +47,7 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
         }
     )
 
+    logger.info(f"Outline prompt text: {outline_prompt_text}")
     outline_preview = await outline_model.ainvoke(outline_prompt_text)
     outline_preview.content = clean_thinking_content(outline_preview.content)
     outline_result = outline_parser.invoke(outline_preview.content)

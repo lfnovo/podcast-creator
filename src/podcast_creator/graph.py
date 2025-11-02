@@ -19,7 +19,7 @@ from .state import PodcastState
 logger.info("Creating podcast generation graph")
 
 
-def create_workflow_graph():
+def create_workflow_graph() -> StateGraph:
     """
     Create a LangGraph StateGraph for generating a podcast
     Defines nodes for each step of the podcast generation process
@@ -172,13 +172,26 @@ async def create_podcast(
     # Save outputs
     if result["outline"]:
         outline_path = output_path / "outline.json"
-        outline_path.write_text(result["outline"].model_dump_json())
+        logger.info(f"Saving outline to {outline_path}")
+        try:
+            outline_path.write_text(result["outline"].model_dump_json())
+        except Exception:
+            outline_path.write_text(result["outline"])
+
+    else:
+        logger.info("No outline")
+        
 
     if result["transcript"]:
         transcript_path = output_path / "transcript.json"
-        transcript_path.write_text(
-            json.dumps([d.model_dump() for d in result["transcript"]], indent=2)
-        )
+        logger.info(f"Saving transcript to {transcript_path}")
+        try:
+            transcript_path.write_text(json.dumps([d.model_dump() for d in result["transcript"]], indent=2))
+        except Exception:
+            transcript_path.write_text(result["transcript"])
+
+    else:
+        logger.info("No transcript")
 
     return {
         "outline": result["outline"],
