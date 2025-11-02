@@ -1,86 +1,110 @@
 {
   "profiles": {
-    "ai_researchers": {
-      "tts_provider": "elevenlabs",
-      "tts_model": "eleven_flash_v2_5",
-      "speakers": [
-        {
-          "name": "Dr. Sarah Chen",
-          "voice_id": "wbZYPUM3zIb4exd1P7a0",
-          "backstory": "AI researcher with 15 years experience in machine learning and neural networks. Currently leads the AI Safety Initiative at Stanford University.",
-          "personality": "Analytical, methodical, asks probing questions about technical details and safety implications"
-        },
-        {
-          "name": "Marcus Rivera",
-          "voice_id": "CwhRBWXzGAHq8TQ4Fs17",
-          "backstory": "Tech journalist and podcast host who specializes in making complex AI topics accessible to general audiences.",
-          "personality": "Engaging, curious, excellent at explaining complex concepts in simple terms and connecting with audiences"
-        }
-      ]
-    },
-    "business_analysts": {
-      "tts_provider": "elevenlabs",
-      "tts_model": "eleven_flash_v2_5",
-      "speakers": [
-        {
-          "name": "Alexandra Hayes",
-          "voice_id": "pNInz6obpgDQGcFmaJgB",
-          "backstory": "Senior business analyst with MBA from Wharton. Specializes in technology market analysis and strategic consulting.",
-          "personality": "Strategic thinker, data-driven, focuses on practical business implications and market trends"
-        },
-        {
-          "name": "David Kim",
-          "voice_id": "EXAVITQu4vr4xnSDxMaL",
-          "backstory": "Former startup founder turned venture capitalist. Has invested in 50+ technology companies over the past decade.",
-          "personality": "Pragmatic, entrepreneurial, excellent at identifying opportunities and potential challenges"
-        },
-        {
-          "name": "Lisa Thompson",
-          "voice_id": "ThT5KcBeYPX3keUQqHPh",
-          "backstory": "Chief Technology Officer with 20 years in enterprise software. Expert in technology adoption and digital transformation.",
-          "personality": "Implementation-focused, practical, bridges the gap between technical possibilities and business realities"
-        }
-      ]
-    },
-    "solo_expert": {
+    "curious_duo": {
       "tts_provider": "openai",
       "tts_model": "gpt-4o-mini-tts",
       "speakers": [
         {
-          "name": "Professor Feynman",
-          "voice_id": "nova",
-          "backstory": "Distinguished professor, loves to learn and has a passion for teaching. Has a knack for making complex topics accessible.",
-          "personality": "Approachable, excellent teacher who can break down complex topics into digestible segments"
+          "name": "Marcus",
+          "voice_id": "onyx",
+          "backstory": "Former journalist turned podcast host with a curious mind and love for storytelling. Always asks the questions listeners want answered.",
+          "personality": "Engaging interviewer, naturally curious, asks clarifying questions, keeps conversation flowing"
+        },
+        {
+          "name": "Sophie",
+          "voice_id": "shimmer",
+          "backstory": "Research enthusiast and trivia buff who loves diving deep into fascinating topics. Brings interesting facts and connections to every discussion.",
+          "personality": "Knowledgeable, enthusiastic, adds color commentary and surprising details"
         }
       ]
     },
-    "diverse_panel": {
-      "tts_provider": "elevenlabs",
-      "tts_model": "eleven_flash_v2_5",
+    "expert_interview": {
+      "tts_provider": "openai",
+      "tts_model": "gpt-4o-mini-tts",
       "speakers": [
         {
-          "name": "Jessica Parker",
-          "voice_id": "ZT9u07TYPVl83ejeLakq",
-          "backstory": "A tech journalist, known for her bold and provocative questions.",
-          "personality": "Smart, deep and sharp questions"
+          "name": "Dr. Elena",
+          "voice_id": "alloy",
+          "backstory": "Seasoned expert with decades of experience in various fields. Known for making complex subjects understandable without dumbing them down.",
+          "personality": "Authoritative yet warm, patient explainer, uses analogies and real-world examples"
         },
         {
-          "name": "Carlos Rodriguez",
-          "voice_id": "6A8alqLCZSCQWNLn5JP0",
-          "backstory": "Successful Silicon Valley serial-entrepreneur",
-          "personality": "He is an optimist and believes in the power of tech to transform the world"
+          "name": "Jakob",
+          "voice_id": "cedar",
+          "backstory": "Young, energetic host who represents the audience's perspective. Not afraid to admit when something is confusing.",
+          "personality": "Enthusiastic learner, asks follow-up questions, relates topics to everyday life"
+        }
+      ]
+    },
+    "storytelling_pair": {
+      "tts_provider": "openai",
+      "tts_model": "gpt-4o-mini-tts",
+      "speakers": [
+        {
+          "name": "Lena",
+          "voice_id": "coral",
+          "backstory": "True crime and history enthusiast with a gift for narrative. Loves uncovering the human stories behind big events.",
+          "personality": "Dramatic storyteller, builds suspense, focuses on character motivations and emotions"
         },
         {
-          "name": "Maya Patel",
-          "voice_id": "lUCNYQh2kqW2wiie85Qk",
-          "backstory": "Sociology researcher and expert in the human/machine symbiosis",
-          "personality": "She is a skeptic and questions the impact of technology on society"
+          "name": "Thomas",
+          "voice_id": "echo",
+          "backstory": "Detail-oriented researcher who loves facts, dates, and getting the story right. Balances emotion with accuracy.",
+          "personality": "Fact-checker, provides context and background, grounds the story in reality"
+        }
+      ]
+    },
+    "debate_style": {
+      "tts_provider": "openai",
+      "tts_model": "gpt-4o-mini-tts",
+      "speakers": [
+        {
+          "name": "Maya",
+          "voice_id": "sage",
+          "backstory": "Philosophy graduate who loves playing devil's advocate and exploring different perspectives on any topic.",
+          "personality": "Analytical, questions assumptions, brings up alternative viewpoints"
         },
         {
-          "name": "Natasha",
-          "voice_id": "PB6BdkFkZLbI39GHdnbQ",
-          "backstory": "TV celebrity, likes to stir the pot and take people by surprise.",
-          "personality": "Provocative, unexpected questions"
+          "name": "David",
+          "voice_id": "ballad",
+          "backstory": "Pragmatic thinker who focuses on practical implications and real-world applications.",
+          "personality": "Grounded, solution-oriented, bridges abstract ideas to concrete examples"
+        }
+      ]
+    },
+    "casual_friends": {
+      "tts_provider": "openai",
+      "tts_model": "gpt-4o-mini-tts",
+      "speakers": [
+        {
+          "name": "Anna",
+          "voice_id": "shimmer",
+          "backstory": "Pop culture enthusiast who makes everything fun and relatable. Brings energy and humor to every topic.",
+          "personality": "Playful, uses pop culture references, keeps things light and entertaining"
+        },
+        {
+          "name": "Michael",
+          "voice_id": "onyx",
+          "backstory": "The 'well actually' friend who loves sharing interesting facts. Balances Anna's energy with depth.",
+          "personality": "Informative but friendly, adds substance without being pompous"
+        }
+      ]
+    },
+    "investigative_team": {
+      "tts_provider": "openai",
+      "tts_model": "gpt-4o-mini-tts",
+      "speakers": [
+        {
+          "name": "Katrin",
+          "voice_id": "alloy",
+          "backstory": "Investigative journalist with years of experience uncovering hidden stories and connecting dots.",
+          "personality": "Skeptical, asks tough questions, digs deeper into inconsistencies"
+        },
+        {
+          "name": "Leon",
+          "voice_id": "ballad",
+          "backstory": "Data analyst who approaches stories through statistics and patterns. Complements intuition with evidence.",
+          "personality": "Methodical, brings receipts, contextualizes with numbers and trends"
         }
       ]
     }
