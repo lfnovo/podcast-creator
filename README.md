@@ -158,7 +158,6 @@ result = await create_podcast(
 result = await create_podcast(
     content="Your content...",
     episode_profile="business_analysis",
-    briefing_suffix="Focus on ROI and cost optimization",
     episode_name="my_podcast",
     output_dir="output/my_podcast"
 )
@@ -401,7 +400,6 @@ result = await create_podcast(
 result = await create_podcast(
     content="Cloud computing trends...",
     episode_profile="business_analysis",
-    briefing_suffix="Focus on cost optimization and ROI metrics",
     episode_name="cloud_economics",
     output_dir="output/cloud_economics"
 )

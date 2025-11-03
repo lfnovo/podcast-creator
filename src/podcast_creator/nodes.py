@@ -12,11 +12,38 @@ from .core import (
     clean_thinking_content,
     combine_audio_files,
     create_validated_transcript_parser,
+    get_content_prompter,
     get_outline_prompter,
     get_transcript_prompter,
     outline_parser,
 )
 from .state import PodcastState
+
+
+async def override_content_node(state: PodcastState, config: RunnableConfig) -> Dict:
+    """Override the content with a detailed and engaging description"""
+    logger.info("Starting content override")
+    content = state["content"]
+
+    configurable = config.get("configurable", {})
+    content_provider = configurable.get("outline_provider", "openai")
+    content_model_name = configurable.get("content_model", "gpt-4o-mini")
+
+    content_prompt = get_content_prompter()
+    content_prompt_text = content_prompt.render({"topic": content})
+
+    content_model = AIFactory.create_language(
+        content_provider,
+        content_model_name,
+        config={"max_tokens": 3000, "structured": {"type": "json"}},
+    ).to_langchain()
+
+    content_preview = await content_model.ainvoke(content_prompt_text)
+    content_preview.content = clean_thinking_content(content_preview.content)
+    
+    logger.info("Content override completed")
+
+    return {"content": content_preview.content}
 
 
 async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> Dict:
@@ -47,7 +74,6 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
         }
     )
 
-    logger.info(f"Outline prompt text: {outline_prompt_text}")
     outline_preview = await outline_model.ainvoke(outline_prompt_text)
     outline_preview.content = clean_thinking_content(outline_preview.content)
     outline_result = outline_parser.invoke(outline_preview.content)
@@ -92,7 +118,7 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
         )
 
         is_final = i == len(outline.segments) - 1
-        turns = 3 if segment.size == "short" else 6 if segment.size == "medium" else 10
+        turns = get_turns_from_segment_size(segment.size)
 
         data = {
             "briefing": state["briefing"],
@@ -253,3 +279,14 @@ async def combine_audio_node(state: PodcastState, config: RunnableConfig) -> Dic
     logger.info(f"Combined audio saved to: {final_path}")
 
     return {"final_output_file_path": final_path}
+
+def get_turns_from_segment_size(segment_size: str) -> int:
+    """Get the number of turns from the segment size"""
+    if segment_size == "short":
+        return 3
+    elif segment_size == "medium":
+        return 6
+    elif segment_size == "long":
+        return 10
+    else:
+        return 3

@@ -97,6 +97,11 @@ def init(force: bool, output_dir: str) -> None:
     # Files to copy
     files_to_copy = [
         {
+            "source": "prompts/podcast/content_override.jinja",
+            "target": output_path / "prompts" / "podcast" / "content_override.jinja",
+            "description": "content_override template",
+        },
+        {
             "source": "prompts/podcast/outline.jinja",
             "target": output_path / "prompts" / "podcast" / "outline.jinja",
             "description": "outline template",

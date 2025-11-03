@@ -1,3 +1,4 @@
+from enum import Enum
 import re
 import uuid
 from pathlib import Path
@@ -164,6 +165,12 @@ def create_validated_transcript_parser(valid_speaker_names: List[str]):
 outline_parser = PydanticOutputParser(pydantic_object=Outline)
 transcript_parser = PydanticOutputParser(pydantic_object=Transcript)
 
+def get_content_prompter():
+    """Get content prompter"""
+    from .config import ConfigurationManager
+
+    config_manager = ConfigurationManager()
+    return config_manager.get_template_prompter("content_override")
 
 def get_outline_prompter():
     """Get outline prompter with configuration support."""
@@ -302,3 +309,54 @@ async def combine_audio_files(
                 clip_obj.close()
             except Exception as close_exc:
                 logger.debug(f"Error closing source clip: {close_exc}")
+
+
+class Difficulty(Enum):
+    EASY = 1
+    MEDIUM = 2
+    HARD = 3
+    EXPERT = 4
+
+
+def get_briefing_from_difficulty(difficulty: Difficulty) -> str:
+    if difficulty == Difficulty.EASY:
+        return briefing_easy
+    elif difficulty == Difficulty.MEDIUM:
+        return briefing_medium
+    elif difficulty == Difficulty.HARD:
+        return briefing_hard
+    elif difficulty == Difficulty.EXPERT:
+        return briefing_expert
+
+
+# EASY (A2-B1 Level)
+briefing_easy = """
+Target audience: beginner German learners (A2-B1).
+Use simple, clear language with short sentences in present tense. Repeat important words frequently.
+The tone should be friendly and welcoming. Explain concepts step-by-step using everyday vocabulary.
+Avoid complex grammar and subordinate clauses.
+"""
+
+# MEDIUM (B1-B2 Level)
+briefing_medium = """
+Target audience: intermediate German learners (B1-B2).
+Use natural, conversational language with varied sentence structures. Mix present and past tenses.
+The tone should be engaging and informative. Include some complex vocabulary with context clues.
+Balance depth with accessibility.
+"""
+
+# HARD (B2-C1 Level)
+briefing_hard = """
+Target audience: advanced German learners (B2-C1).
+Use sophisticated language with complex sentences, idioms, and all tenses including subjunctive.
+The tone should be professional yet conversational. Use technical vocabulary and cultural references.
+Explore nuanced perspectives and deeper analysis.
+"""
+
+# EXPERT (C1-C2 Level)
+briefing_expert = """
+Target audience: near-native German speakers (C1-C2).
+Use native-level language without accommodation. Employ literary devices, wordplay, and cultural nuances.
+The tone should be intellectually engaging with subtle humor. Use all grammatical structures freely
+including formal and archaic forms where appropriate.
+"""
