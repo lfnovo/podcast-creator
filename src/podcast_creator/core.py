@@ -312,6 +312,7 @@ async def combine_audio_files(
 
 
 class Difficulty(Enum):
+    BEGINNER = 0
     EASY = 1
     MEDIUM = 2
     HARD = 3
@@ -319,6 +320,8 @@ class Difficulty(Enum):
 
 
 def get_briefing_from_difficulty(difficulty: Difficulty) -> str:
+    if difficulty == Difficulty.BEGINNER:
+        return briefing_beginner
     if difficulty == Difficulty.EASY:
         return briefing_easy
     elif difficulty == Difficulty.MEDIUM:
@@ -328,6 +331,14 @@ def get_briefing_from_difficulty(difficulty: Difficulty) -> str:
     elif difficulty == Difficulty.EXPERT:
         return briefing_expert
 
+
+# BEGINNER (A1-A2 Level)
+briefing_beginner = """
+Target audience: beginner German learners (A1-A2).
+Use very simple, clear language with very sentences in present tense. Repeat important words frequently.
+The tone should be friendly and welcoming. Explain concepts step-by-step using everyday vocabulary.
+Avoid complex grammar and subordinate clauses.
+"""
 
 # EASY (A2-B1 Level)
 briefing_easy = """
