@@ -1,0 +1,6 @@
+config:
+  cloudflare:apiToken:
+    secure: AAABAOJ/UlzA5yGnzWLZtBdsi6GVsZkakrg6KIXCZiBgfDhMgFgH1MaQaScZA+HJP7+DbUfO5fKqlRV9zgKKWUDluIXKmphd
+  podcast-creator:email: joachimbulow@hotmail.dk
+  podcast-creator:domain: joachimbulow.net
+  podcast-creator:subdomain: podcastcdn
