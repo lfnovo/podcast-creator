@@ -255,7 +255,7 @@ async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
 
     # Generate audio
     await tts_model.agenerate_speech(
-        text=dialogue.dialogue, voice=voices[dialogue.speaker], output_file=clip_path
+        text=dialogue.dialogue, voice=voices[dialogue.speaker], output_file=clip_path, temperature=0.1
     )
 
     logger.info(f"Generated audio clip: {clip_path}")

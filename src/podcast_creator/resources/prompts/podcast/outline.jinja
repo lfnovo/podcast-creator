@@ -34,17 +34,16 @@ Please create an outline based on this briefing. Your outline should consist of 
 4. Write a detailed description for each segment, explaining what will be discussed and provide suggestions of topics according to the context given. The writer will use your suggestion to design the dialogs.
 5. Consider the speaker personalities and backstories when planning segments - match content to speaker expertise.
 6. Ensure that the segments flow logically from one to the next.
-7. This is a whole podcast so no need to reintroduce speakers or topics on each segment. Segments are just markers for us to know to change the topics, nothing else. 
-8. Include an introduction segment at the beginning and a conclusion or wrap-up segment at the end.
+7. This is a whole podcast so no need to reintroduce speakers or topics on each segment. Segments are just markers for us to know to change the topics, nothing else.
+8. ALWAYS include an introduction segment as the very first segment and a conclusion segment at the end.
 
 Format your outline using the following structure:
-
 ```json
 {
     "segments": [
         {
-            "name": "[Segment Name]",
-            "description": "[Description of the segment content]",
+            "name": "Introduction",
+            "description": "[Speakers greet the listener by name, introduce themselves, and provide a brief, engaging description of the episode's content including a hook and preview of what will be covered]",
             "size": "short"
         },
         {
@@ -57,7 +56,12 @@ Format your outline using the following structure:
             "description": "[Description of the segment content]",
             "size": "long"
         },
-    ...
+        ...
+        {
+            "name": "Conclusion",
+            "description": "[Speakers wrap up the discussion, summarize key takeaways, and provide closing remarks]",
+            "size": "short"
+        }
     ]
 }
 ```
