@@ -58,6 +58,10 @@ class SpeakerProfile(BaseModel):
         """Get mapping of speaker names to voice IDs"""
         return {speaker.name: speaker.voice_id for speaker in self.speakers}
 
+    def get_backstory_mapping(self) -> Dict[str, str]:
+        """Get mapping of speaker names to backstories"""
+        return {speaker.name: speaker.backstory for speaker in self.speakers}
+
     def get_speaker_by_name(self, name: str) -> Speaker:
         """Get speaker by name"""
         for speaker in self.speakers:

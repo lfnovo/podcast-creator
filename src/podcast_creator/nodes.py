@@ -40,7 +40,7 @@ async def override_content_node(state: PodcastState, config: RunnableConfig) -> 
 
     content_preview = await content_model.ainvoke(content_prompt_text)
     content_preview.content = clean_thinking_content(content_preview.content)
-    
+
     logger.info("Content override completed")
 
     return {"content": content_preview.content}
@@ -185,6 +185,7 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
     tts_provider = speaker_profile.tts_provider
     tts_model = speaker_profile.tts_model
     voices = speaker_profile.get_voice_mapping()
+    backstories = speaker_profile.get_backstory_mapping()
 
     logger.info(
         f"Generating {total_segments} audio clips in sequential batches of {batch_size}"
@@ -212,6 +213,7 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
                 "tts_provider": tts_provider,
                 "tts_model": tts_model,
                 "voices": voices,
+                "backstories": backstories,
             }
             task = generate_single_audio_clip(dialogue_info)
             batch_tasks.append(task)
@@ -239,6 +241,7 @@ async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
     tts_provider = dialogue_info["tts_provider"]
     tts_model_name = dialogue_info["tts_model"]
     voices = dialogue_info["voices"]
+    backstories = dialogue_info["backstories"]
 
     logger.info(f"Generating audio clip {index:04d} for {dialogue.speaker}")
 
@@ -253,9 +256,17 @@ async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
     # Create TTS model
     tts_model = AIFactory.create_text_to_speech(tts_provider, tts_model_name)
 
+    voice = voices[dialogue.speaker]
+    backstory = backstories[dialogue.speaker]
+
     # Generate audio
     await tts_model.agenerate_speech(
-        text=dialogue.dialogue, voice=voices[dialogue.speaker], output_file=clip_path, temperature=0.1
+        text=dialogue.dialogue,
+        voice=voice,
+        instructions=backstory,
+        output_file=clip_path,
+        temperature=0.1,
+        speed=1.0,
     )
 
     logger.info(f"Generated audio clip: {clip_path}")
@@ -279,6 +290,7 @@ async def combine_audio_node(state: PodcastState, config: RunnableConfig) -> Dic
     logger.info(f"Combined audio saved to: {final_path}")
 
     return {"final_output_file_path": final_path}
+
 
 def get_turns_from_segment_size(segment_size: str) -> int:
     """Get the number of turns from the segment size"""

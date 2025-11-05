@@ -334,40 +334,40 @@ def get_briefing_from_difficulty(difficulty: Difficulty) -> str:
 
 # BEGINNER (A1-A2 Level)
 briefing_beginner = """
-Target audience: beginner German learners (A1-A2).
-Use very simple, clear language with very sentences in present tense. Repeat important words frequently.
-The tone should be friendly and welcoming. Explain concepts step-by-step using everyday vocabulary.
-Avoid complex grammar and subordinate clauses.
+Target audience: absolute beginner German learners (A1-A2).
+Use only basic words. Sentences 4-8 words maximum. Only present tense and simple past (war, hatte).
+Speak like teaching a young child - very clear and concrete.
+No subordinate clauses. No complex grammar.
 """
 
 # EASY (A2-B1 Level)
 briefing_easy = """
-Target audience: beginner German learners (A2-B1).
-Use simple, clear language with short sentences in present tense. Repeat important words frequently.
-The tone should be friendly and welcoming. Explain concepts step-by-step using everyday vocabulary.
-Avoid complex grammar and subordinate clauses.
+Target audience: elementary German learners (A2-B1).
+Use simple everyday vocabulary. Sentences 8-12 words. Mainly present tense, some simple past.
+Use basic connectors (und, aber, dann).
+Explain like to a 10-year-old. Keep it concrete and straightforward.
 """
 
 # MEDIUM (B1-B2 Level)
 briefing_medium = """
 Target audience: intermediate German learners (B1-B2).
-Use natural, conversational language with varied sentence structures. Mix present and past tenses.
-The tone should be engaging and informative. Include some complex vocabulary with context clues.
-Balance depth with accessibility.
+Use natural conversational German. Sentences 12-20 words. Mix present, past, and future tenses.
+Include common subordinate clauses (weil, dass, wenn, als) and everyday idioms.
+Speak like normal adult conversation. Balance detail with clarity.
 """
 
 # HARD (B2-C1 Level)
 briefing_hard = """
 Target audience: advanced German learners (B2-C1).
-Use sophisticated language with complex sentences, idioms, and all tenses including subjunctive.
-The tone should be professional yet conversational. Use technical vocabulary and cultural references.
-Explore nuanced perspectives and deeper analysis.
+Use sophisticated, educated German. Sentences 20-30 words. All tenses including subjunctive and passive.
+Complex clauses, idioms, technical terms, and cultural references.
+Speak like newspaper articles or university lectures.
 """
 
 # EXPERT (C1-C2 Level)
 briefing_expert = """
-Target audience: near-native German speakers (C1-C2).
-Use native-level language without accommodation. Employ literary devices, wordplay, and cultural nuances.
-The tone should be intellectually engaging with subtle humor. Use all grammatical structures freely
-including formal and archaic forms where appropriate.
+Target audience: near-native speakers (C1-C2).
+Use literary, academic, or professional German. No restrictions on complexity.
+All grammatical structures including formal/archaic forms. Technical terminology, scientific language,
+literary devices, and wordplay. Speak like published authors or academics.
 """
