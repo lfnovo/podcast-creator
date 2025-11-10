@@ -2,10 +2,12 @@ import * as pulumi from "@pulumi/pulumi";
 import * as cloudflare from "@pulumi/cloudflare";
 
 const config = new pulumi.Config();
-const bucketName = "podcast-bucket";
+const domain = config.get('domain');
+const subdomain = config.get('subdomain');
+ 
+const bucketName = `${subdomain}`;
 const zoneId = "ff78d7733bafe5ec08240fd2dcf39e3c";
 const accountId = "2f0fa28e2eeeb947bbf466610aa69284";
-const domain = config.get('domain');
 
 new cloudflare.R2Bucket(bucketName, {
     accountId: accountId,
@@ -17,7 +19,7 @@ new cloudflare.R2Bucket(bucketName, {
 new cloudflare.R2CustomDomain("podcast-r2-custom-domain", {
     accountId: accountId,
     bucketName: bucketName,
-    domain: `${bucketName}.${domain!}`,
+    domain: `${subdomain}.${domain!}`,
     enabled: true,
     zoneId,
 });

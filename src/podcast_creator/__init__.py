@@ -16,7 +16,7 @@ from .core import (
 )
 from .graph import PodcastState, create_podcast
 from .graph import create_workflow_graph
-from .speakers import Speaker, SpeakerConfig, SpeakerProfile, load_speaker_config
+from .speakers import Speaker, SpeakerConfig, SpeakerProfile, load_speaker_profile, load_speaker_config
 from .episodes import EpisodeProfile, EpisodeConfig, load_episode_config
 
 try:
@@ -52,6 +52,7 @@ __all__ = [
     "Speaker",
     "SpeakerProfile",
     "SpeakerConfig",
+    "load_speaker_profile",
     "load_speaker_config",
     # Episode models
     "EpisodeProfile",

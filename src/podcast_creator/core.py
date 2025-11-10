@@ -314,9 +314,8 @@ async def combine_audio_files(
 class Difficulty(Enum):
     BEGINNER = 0
     EASY = 1
-    MEDIUM = 2
-    HARD = 3
-    EXPERT = 4
+    INTERMEDIATE = 2
+    EXPERT = 3
 
 
 def get_briefing_from_difficulty(difficulty: Difficulty) -> str:
@@ -324,10 +323,8 @@ def get_briefing_from_difficulty(difficulty: Difficulty) -> str:
         return briefing_beginner
     if difficulty == Difficulty.EASY:
         return briefing_easy
-    elif difficulty == Difficulty.MEDIUM:
+    elif difficulty == Difficulty.INTERMEDIATE:
         return briefing_medium
-    elif difficulty == Difficulty.HARD:
-        return briefing_hard
     elif difficulty == Difficulty.EXPERT:
         return briefing_expert
 
@@ -356,18 +353,10 @@ Include common subordinate clauses (weil, dass, wenn, als) and everyday idioms.
 Speak like normal adult conversation. Balance detail with clarity.
 """
 
-# HARD (B2-C1 Level)
-briefing_hard = """
+# EXPERT (C1-C2 Level)
+briefing_expert = """
 Target audience: advanced German learners (B2-C1).
 Use sophisticated, educated German. Sentences 20-30 words. All tenses including subjunctive and passive.
 Complex clauses, idioms, technical terms, and cultural references.
 Speak like newspaper articles or university lectures.
-"""
-
-# EXPERT (C1-C2 Level)
-briefing_expert = """
-Target audience: near-native speakers (C1-C2).
-Use literary, academic, or professional German. No restrictions on complexity.
-All grammatical structures including formal/archaic forms. Technical terminology, scientific language,
-literary devices, and wordplay. Speak like published authors or academics.
 """

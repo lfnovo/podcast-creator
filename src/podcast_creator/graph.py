@@ -15,7 +15,7 @@ from .nodes import (
     override_content_node,
     route_audio_generation,
 )
-from .speakers import load_speaker_config
+from .speakers import load_speaker_profile
 from .episodes import load_episode_config
 from .state import PodcastState
 
@@ -127,7 +127,7 @@ async def create_podcast(
         raise ValueError("briefing is required")
     
     # Load speaker profile
-    speaker_profile = load_speaker_config(speaker_config)
+    speaker_profile = load_speaker_profile(speaker_config)
 
     # Create output directory
     output_path = Path(output_dir)

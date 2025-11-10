@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -113,7 +113,46 @@ class SpeakerConfig(BaseModel):
             raise ValueError(f"Error loading speaker config: {e}")
 
 
-def load_speaker_config(config_name: str, project_root: Path = None) -> SpeakerProfile:
+def load_speaker_config(project_root: Path = None) -> Optional[SpeakerConfig]:
+    """
+    Load the speaker config from the project root.
+
+    Args:
+        project_root: Project root directory (defaults to current working directory)
+
+    Returns:
+        SpeakerConfig: The loaded speaker config
+    """
+    # Priority 1: Check configured speaker config file path
+    if project_root is None:
+        project_root = Path.cwd()
+
+    # Look for speakers_config.json in working directory
+    config_path = project_root / "speakers_config.json"
+
+    # Check if file exists in working directory
+    if config_path.exists():
+        return SpeakerConfig.load_from_file(config_path)
+
+    # Priority 2: Try bundled defaults
+    try:
+        import importlib.resources as resources
+
+        # Try to load from package resources
+        package_resources = resources.files("podcast_creator.resources")
+        resource_file = package_resources / "speakers_config.json"
+
+        if resource_file.is_file():
+            content = resource_file.read_text()
+            data = json.loads(content)
+            return SpeakerConfig(**data)
+    except Exception:
+        pass
+
+    return None
+
+
+def load_speaker_profile(config_name: str, project_root: Path = None) -> SpeakerProfile:
     """
     Load a specific speaker profile from configuration or file system.
 
@@ -133,6 +172,7 @@ def load_speaker_config(config_name: str, project_root: Path = None) -> SpeakerP
     # Priority 1: Check configuration first
     try:
         from .config import ConfigurationManager
+
         config_manager = ConfigurationManager()
         configured_profile = config_manager.get_speaker_profile(config_name)
         if configured_profile:
@@ -143,48 +183,25 @@ def load_speaker_config(config_name: str, project_root: Path = None) -> SpeakerP
     # Priority 2: Check configured speaker config file path
     try:
         from .config import ConfigurationManager
+
         config_manager = ConfigurationManager()
         speakers_config_path = config_manager.get_config("speakers_config")
-        
+
         if speakers_config_path and isinstance(speakers_config_path, str):
             config_path = Path(speakers_config_path)
             if config_path.exists():
                 speaker_config = SpeakerConfig.load_from_file(config_path)
-                
+
                 # Use config_name directly as profile name
                 return speaker_config.get_profile(config_name)
     except Exception:
-        pass  # Fall back to default behavior
+        pass  # Fall back to default behavior / loading from file and bundle
 
-    # Priority 3: Use existing file-based loading (working directory)
-    if project_root is None:
-        project_root = Path.cwd()
-
-    # Look for speakers_config.json in working directory
-    config_path = project_root / "speakers_config.json"
-    
-    # Check if file exists in working directory
-    if config_path.exists():
-        speaker_config = SpeakerConfig.load_from_file(config_path)
+    # Priority 3: Try to use file based config
+    speaker_config = load_speaker_config(project_root)
+    if speaker_config:
         return speaker_config.get_profile(config_name)
 
-    # Priority 4: Try bundled defaults
-    try:
-        import importlib.resources as resources
-        
-        # Try to load from package resources
-        package_resources = resources.files("podcast_creator.resources")
-        resource_file = package_resources / "speakers_config.json"
-        
-        if resource_file.is_file():
-            content = resource_file.read_text()
-            data = json.loads(content)
-            speaker_config = SpeakerConfig(**data)
-            return speaker_config.get_profile(config_name)
-    except Exception:
-        pass
-
-    # If we get here, config not found
     raise ValueError(
         f"Speaker profile '{config_name}' not found. Please ensure it exists in one of:\n"
         f"1. Configured speakers via configure('speakers_config', {{...}})\n"
