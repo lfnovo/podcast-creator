@@ -5,9 +5,9 @@ const config = new pulumi.Config();
 const domain = config.get('domain');
 const subdomain = config.get('subdomain');
  
-const bucketName = `${subdomain}`;
+const bucketName = `${subdomain}`; //podcastcdn
 const zoneId = "ff78d7733bafe5ec08240fd2dcf39e3c";
-const accountId = "2f0fa28e2eeeb947bbf466610aa69284";
+const accountId = "7ec73ba9e7ae3abd8134b7f8f5c1cdba";
 
 new cloudflare.R2Bucket(bucketName, {
     accountId: accountId,

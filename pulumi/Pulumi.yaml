@@ -1,5 +1,5 @@
-name: podcast-creator
-description: Infra for our podcast-creator app
+name: LangSurf Infra
+description: Infra for the LangSurf app
 runtime:
   name: nodejs
   options:
