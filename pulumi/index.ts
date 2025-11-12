@@ -6,10 +6,10 @@ const domain = config.get('domain');
 const subdomain = config.get('subdomain');
  
 const bucketName = `${subdomain}`; //podcastcdn
-const zoneId = "ff78d7733bafe5ec08240fd2dcf39e3c";
-const accountId = "7ec73ba9e7ae3abd8134b7f8f5c1cdba";
+const zoneId = "7ec73ba9e7ae3abd8134b7f8f5c1cdba";
+const accountId = "2f0fa28e2eeeb947bbf466610aa69284";
 
-new cloudflare.R2Bucket(bucketName, {
+const r2Bucket = new cloudflare.R2Bucket(bucketName, {
     accountId: accountId,
     name: bucketName,
     location: "weur",
@@ -22,6 +22,8 @@ new cloudflare.R2CustomDomain("podcast-r2-custom-domain", {
     domain: `${subdomain}.${domain!}`,
     enabled: true,
     zoneId,
+}, {
+    dependsOn: [r2Bucket],
 });
 
 // new cloudflare.Ruleset("r2-cache-rule", {

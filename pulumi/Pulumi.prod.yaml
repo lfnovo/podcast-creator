@@ -1,6 +1,6 @@
 config:
   cloudflare:apiToken:
-    secure: AAABAOJ/UlzA5yGnzWLZtBdsi6GVsZkakrg6KIXCZiBgfDhMgFgH1MaQaScZA+HJP7+DbUfO5fKqlRV9zgKKWUDluIXKmphd
+    secure: AAABAA9G90CxVrvPJYbaPPvTa0PlembmNdxNBLaQB3nmBo7fK531C6CjVx25w83oP9LgihzpLjWoiFCOm6qwxCV4wGJWkFb/
   podcast-creator:email: joachimbulow@hotmail.dk
   podcast-creator:domain: langsurf.com
   podcast-creator:subdomain: podcastcdn
