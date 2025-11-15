@@ -1,3 +1,5 @@
+# This repository has been moved to private
+
 # Podcast Creator
 
 An AI-powered podcast generation library that creates conversational audio content from text-based sources. This pip-installable package processes documents, generates structured outlines, creates natural dialogue transcripts, and converts them into high-quality audio podcasts using **LangGraph workflow orchestration**.
