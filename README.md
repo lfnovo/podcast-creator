@@ -574,6 +574,60 @@ This is particularly useful for:
 - **Other TTS providers** with stricter rate limits
 - **Debugging**: Set to 1 for sequential processing
 
+### 🌐 Proxy Configuration
+
+If you're behind a corporate firewall or need to route requests through a proxy, you can configure HTTP/HTTPS proxy support:
+
+**Environment Variables (recommended for persistent configuration):**
+
+```bash
+# In your .env file or shell environment
+
+# App-specific proxy (highest priority)
+PODCAST_CREATOR_PROXY=http://proxy.example.com:8080
+
+# Or use standard proxy variables
+HTTP_PROXY=http://proxy.example.com:8080
+HTTPS_PROXY=http://proxy.example.com:8080
+```
+
+**Runtime Parameter (for per-call configuration):**
+
+```python
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="tech_discussion",
+    episode_name="my_podcast",
+    output_dir="output/my_podcast",
+    proxy="http://proxy.example.com:8080"  # Override environment
+)
+
+# Explicitly disable proxy (ignores environment variables)
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="tech_discussion",
+    episode_name="my_podcast",
+    output_dir="output/my_podcast",
+    proxy=""  # Empty string disables proxy
+)
+```
+
+**Priority Order:**
+1. Runtime `proxy` parameter (highest)
+2. `PODCAST_CREATOR_PROXY` environment variable
+3. `HTTP_PROXY` environment variable
+4. `HTTPS_PROXY` environment variable
+5. No proxy (default)
+
+**Authenticated Proxies:**
+
+```bash
+# Proxies with authentication are supported
+PODCAST_CREATOR_PROXY=http://user:password@proxy.example.com:8080
+```
+
+Note: Credentials are automatically redacted in log messages for security.
+
 ## 🧪 Development
 
 ### Installing for Development
