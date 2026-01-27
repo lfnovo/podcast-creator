@@ -15,6 +15,20 @@ try:
 except ImportError:
     CONTENT_CORE_AVAILABLE = False
 
+try:
+    from podcast_creator.utils import get_proxy
+except ImportError:
+    # Fallback if utils not available
+    def get_proxy(runtime_proxy=None):
+        import os
+        if runtime_proxy is not None:
+            return runtime_proxy if runtime_proxy else None
+        return (
+            os.environ.get("PODCAST_CREATOR_PROXY")
+            or os.environ.get("HTTP_PROXY")
+            or os.environ.get("HTTPS_PROXY")
+        )
+
 
 class ContentExtractor:
     """Content extraction utility using content-core library."""
@@ -46,7 +60,13 @@ class ContentExtractor:
             )
         
         try:
-            result = await extract_content(dict(url=url))
+            # Build input dict with proxy if configured
+            input_dict = {"url": url}
+            proxy = get_proxy()
+            if proxy:
+                input_dict["proxy"] = proxy
+
+            result = await extract_content(input_dict)
             content = result.content if hasattr(result, 'content') else str(result)
             if not content or not content.strip():
                 raise Exception("No content extracted from URL")
@@ -81,7 +101,13 @@ class ContentExtractor:
             raise FileNotFoundError(f"File not found: {file_path}")
         
         try:
-            result = await extract_content({"file_path": file_path})
+            # Build input dict with proxy if configured
+            input_dict = {"file_path": file_path}
+            proxy = get_proxy()
+            if proxy:
+                input_dict["proxy"] = proxy
+
+            result = await extract_content(input_dict)
             content = result.content if hasattr(result, 'content') else str(result)
             if not content or not content.strip():
                 raise Exception("No content extracted from file")
@@ -133,11 +159,17 @@ class ContentExtractor:
                 tmp_file_path = tmp_file.name
             
             try:
+                # Build input dict with proxy if configured
+                input_dict = {"file_path": tmp_file_path}
+                proxy = get_proxy()
+                if proxy:
+                    input_dict["proxy"] = proxy
+
                 # Extract content using content-core
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 result = loop.run_until_complete(
-                    extract_content({"file_path": tmp_file_path})
+                    extract_content(input_dict)
                 )
                 loop.close()
                 content = result.content if hasattr(result, 'content') else str(result)
