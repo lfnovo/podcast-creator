@@ -569,7 +569,7 @@ wheels = [
 
 [[package]]
 name = "content-core"
-version = "1.10.0"
+version = "1.14.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ai-prompter" },
@@ -584,6 +584,7 @@ dependencies = [
     { name = "langdetect" },
     { name = "langgraph" },
     { name = "loguru" },
+    { name = "markdownify" },
     { name = "moviepy" },
     { name = "openpyxl" },
     { name = "pandas" },
@@ -598,9 +599,9 @@ dependencies = [
     { name = "validators" },
     { name = "youtube-transcript-api" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4a/b5/1322ad0b3d9eb86bbc8efe76e3e569ad32caaf7769973ad166b21468857f/content_core-1.10.0.tar.gz", hash = "sha256:e8f83b5675b24b0b8a38dad0dff5a878b9efe2d5e00b4d71ea3e3073d2eff000", size = 20737121, upload-time = "2026-01-16T20:12:51.308Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/0f/7b2eb9ca0b88d52fb355a70048458c12356cc7f343fcc72da0be8d7b2e15/content_core-1.14.0.tar.gz", hash = "sha256:e0321a01bb8d026f7bc9bcd897236f67b44b265456cdfca5bcdffb7f74aea1cf", size = 20737540, upload-time = "2026-01-30T01:22:44.241Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3c/bc/1573354487143af2f3d401454f5801ccbd8a9e426e3d7b5095453ddbb6da/content_core-1.10.0-py3-none-any.whl", hash = "sha256:e8c4ef011224a376b719a73243f9a432e7e4694049e77129eae62370e7e93152", size = 183303, upload-time = "2026-01-16T20:12:49.116Z" },
+    { url = "https://files.pythonhosted.org/packages/53/33/8ffa576ba76d6c2bdb4a562564a9aec41f42f0bd281e8d2458466a0fbace/content_core-1.14.0-py3-none-any.whl", hash = "sha256:5c7c378d74d45b9d40e3c0c2214118fad95a96946c69d13be271c555bfe84d74", size = 186330, upload-time = "2026-01-30T01:22:47.614Z" },
 ]
 
 [[package]]
@@ -810,15 +811,15 @@ wheels = [
 
 [[package]]
 name = "esperanto"
-version = "2.17.2"
+version = "2.18.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/0d/1607a3a46421c63d81a56002f489c25424761b8589022289dec64d324efd/esperanto-2.17.2.tar.gz", hash = "sha256:6e96db87f6a4faa1387554be9feefb2d6de761b2368c45ddf0a9967c1d1064cb", size = 850259, upload-time = "2026-01-24T12:32:48.887Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/64/f1/1b34dc08a293b6f00291611799fc04074e3c7cadf9578b26f2329c20b91d/esperanto-2.18.0.tar.gz", hash = "sha256:8743fdaeb810b0354ae127a8ca875947c4e57db4d0336543a862f2dd213735fd", size = 849402, upload-time = "2026-01-30T00:40:09.038Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8d/43/c83db99f2e24b50cedf05730a229df67cd0720b5bb0bc980a1b1246d19d9/esperanto-2.17.2-py3-none-any.whl", hash = "sha256:db6530794de7dc5be0a1196e9a9444c89934ec0af4a55792fb6daa1bb7a2cb3e", size = 201438, upload-time = "2026-01-24T12:32:50.619Z" },
+    { url = "https://files.pythonhosted.org/packages/21/9b/163225ef2b723a8edf06003c82888a73b8ad3fbb97bc12aed62867f4381d/esperanto-2.18.0-py3-none-any.whl", hash = "sha256:dfcec77ed81a195aa222636f7b70024c73c4282f3bcad13edb000ad1f4224903", size = 201374, upload-time = "2026-01-30T00:40:10.607Z" },
 ]
 
 [[package]]
@@ -2023,6 +2024,19 @@ wheels = [
 ]
 
 [[package]]
+name = "markdownify"
+version = "1.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "beautifulsoup4" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3f/bc/c8c8eea5335341306b0fa7e1cb33c5e1c8d24ef70ddd684da65f41c49c92/markdownify-1.2.2.tar.gz", hash = "sha256:b274f1b5943180b031b699b199cbaeb1e2ac938b75851849a31fd0c3d6603d09", size = 18816, upload-time = "2025-11-16T19:21:18.565Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/43/ce/f1e3e9d959db134cedf06825fae8d5b294bd368aacdd0831a3975b7c4d55/markdownify-1.2.2-py3-none-any.whl", hash = "sha256:3f02d3cc52714084d6e589f70397b6fc9f2f3a8531481bf35e8cc39f975e186a", size = 15724, upload-time = "2025-11-16T19:21:17.622Z" },
+]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -3068,7 +3082,7 @@ wheels = [
 
 [[package]]
 name = "podcast-creator"
-version = "0.8.0"
+version = "0.9.0"
 source = { editable = "." }
 dependencies = [
     { name = "ai-prompter" },
@@ -3105,8 +3119,8 @@ dev = [
 requires-dist = [
     { name = "ai-prompter", specifier = ">=0.3.1" },
     { name = "click", specifier = ">=8.0.0" },
-    { name = "content-core", specifier = ">=1.10" },
-    { name = "esperanto", specifier = ">=2.17.2" },
+    { name = "content-core", specifier = ">=1.14" },
+    { name = "esperanto", specifier = ">=2.18.0" },
     { name = "langgraph", specifier = ">=1.0.6" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "moviepy", specifier = ">=2.2.1" },
