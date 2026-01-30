@@ -88,8 +88,7 @@ class EpisodeManager:
         
         # Look for expected files
         audio_dir = episode_path / "audio"
-        clips_dir = episode_path / "clips"
-        
+
         # Find audio file
         audio_file = None
         if audio_dir.exists():

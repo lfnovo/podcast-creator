@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-01-29
+
+### Changed
+- **BREAKING**: Simplified proxy configuration to use standard environment variables only
+- Removed custom `proxy` parameter from `create_podcast()` function
+- Removed `PODCAST_CREATOR_PROXY` environment variable support
+- Removed `get_proxy()` utility function
+- Proxy support now relies entirely on standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables
+- Underlying libraries (esperanto, content-core) handle proxy configuration automatically
+
+### Removed
+- `podcast_creator.utils` module (proxy utilities)
+
 ## [0.8.0] - 2026-01-26
 
 ### Added

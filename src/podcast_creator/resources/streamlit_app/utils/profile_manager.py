@@ -11,7 +11,7 @@ import streamlit as st
 from copy import deepcopy
 
 try:
-    from podcast_creator import load_speaker_config, load_episode_config, configure
+    from podcast_creator import load_speaker_config, load_episode_config, configure  # noqa: F401
     PODCAST_CREATOR_AVAILABLE = True
 except ImportError:
     PODCAST_CREATOR_AVAILABLE = False

@@ -26,18 +26,12 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
     configurable = config.get("configurable", {})
     outline_provider = configurable.get("outline_provider", "openai")
     outline_model_name = configurable.get("outline_model", "gpt-4o-mini")
-    proxy = configurable.get("proxy")
-
-    # Create outline model config
-    model_config = {"max_tokens": 3000, "structured": {"type": "json"}}
-    if proxy:
-        model_config["proxy"] = proxy
 
     # Create outline model
     outline_model = AIFactory.create_language(
         outline_provider,
         outline_model_name,
-        config=model_config,
+        config={"max_tokens": 3000, "structured": {"type": "json"}},
     ).to_langchain()
 
     # Generate outline
@@ -72,18 +66,12 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
     configurable = config.get("configurable", {})
     transcript_provider: str = configurable.get("transcript_provider", "openai")
     transcript_model_name: str = configurable.get("transcript_model", "gpt-4o-mini")
-    proxy = configurable.get("proxy")
-
-    # Create transcript model config
-    model_config = {"max_tokens": 5000, "structured": {"type": "json"}}
-    if proxy:
-        model_config["proxy"] = proxy
 
     # Create transcript model
     transcript_model = AIFactory.create_language(
         transcript_provider,
         transcript_model_name,
-        config=model_config,
+        config={"max_tokens": 5000, "structured": {"type": "json"}},
     ).to_langchain()
 
     # Create validated transcript parser
@@ -152,10 +140,6 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
     batch_size = int(os.getenv("TTS_BATCH_SIZE", "5"))
     logger.info(f"Using TTS batch size: {batch_size}")
 
-    # Get proxy from configurable
-    configurable = config.get("configurable", {})
-    proxy = configurable.get("proxy")
-
     assert state.get("speaker_profile") is not None, "speaker_profile must be provided"
 
     # Get TTS configuration from speaker profile
@@ -191,7 +175,6 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
                 "tts_provider": tts_provider,
                 "tts_model": tts_model,
                 "voices": voices,
-                "proxy": proxy,
             }
             task = generate_single_audio_clip(dialogue_info)
             batch_tasks.append(task)
@@ -219,7 +202,6 @@ async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
     tts_provider = dialogue_info["tts_provider"]
     tts_model_name = dialogue_info["tts_model"]
     voices = dialogue_info["voices"]
-    proxy = dialogue_info.get("proxy")
 
     logger.info(f"Generating audio clip {index:04d} for {dialogue.speaker}")
 
@@ -231,13 +213,8 @@ async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
     filename = f"{index:04d}.mp3"
     clip_path = clips_dir / filename
 
-    # Create TTS model (with proxy config if configured)
-    if proxy:
-        tts_model = AIFactory.create_text_to_speech(
-            tts_provider, tts_model_name, config={"proxy": proxy}
-        )
-    else:
-        tts_model = AIFactory.create_text_to_speech(tts_provider, tts_model_name)
+    # Create TTS model
+    tts_model = AIFactory.create_text_to_speech(tts_provider, tts_model_name)
 
     # Generate audio
     await tts_model.agenerate_speech(

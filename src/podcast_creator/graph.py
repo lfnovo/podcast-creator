@@ -15,7 +15,6 @@ from .nodes import (
 from .speakers import load_speaker_config
 from .episodes import load_episode_config
 from .state import PodcastState
-from .utils import get_proxy, _redact_proxy_url
 
 logger.info("Creating podcast generation graph")
 
@@ -53,7 +52,6 @@ async def create_podcast(
     num_segments: Optional[int] = None,
     episode_profile: Optional[str] = None,
     briefing_suffix: Optional[str] = None,
-    proxy: Optional[str] = None,
 ) -> Dict:
     """
     High-level function to create a podcast using the LangGraph workflow
@@ -71,9 +69,6 @@ async def create_podcast(
         num_segments: Number of podcast segments
         episode_profile: Episode profile name to use for defaults
         briefing_suffix: Additional briefing text to append to profile default
-        proxy: HTTP/HTTPS proxy URL for network requests (optional).
-               If not provided, reads from PODCAST_CREATOR_PROXY, HTTP_PROXY,
-               or HTTPS_PROXY environment variables.
 
     Returns:
         Dict with results including final audio path
@@ -141,11 +136,6 @@ async def create_podcast(
         speaker_profile=speaker_profile,
     )
 
-    # Resolve proxy configuration
-    resolved_proxy = get_proxy(proxy)
-    if resolved_proxy:
-        logger.info(f"Using proxy: {_redact_proxy_url(resolved_proxy)}")
-
     # Create configuration
     config = {
         "configurable": {
@@ -153,7 +143,6 @@ async def create_podcast(
             "outline_model": outline_model,
             "transcript_provider": transcript_provider,
             "transcript_model": transcript_model,
-            "proxy": resolved_proxy,
         }
     }
 

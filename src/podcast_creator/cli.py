@@ -301,7 +301,7 @@ def ui(port: int, host: str, skip_init_check: bool) -> None:
     """
     # Check if Streamlit is available
     try:
-        import streamlit
+        import streamlit  # noqa: F401
     except ImportError:
         click.echo("❌ Streamlit is not installed. The UI feature requires Streamlit.")
         click.echo()
