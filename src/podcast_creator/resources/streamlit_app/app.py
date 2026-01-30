@@ -8,16 +8,16 @@ and generating podcasts using the podcast-creator library.
 import nest_asyncio
 nest_asyncio.apply()
 
-import streamlit as st
-import sys
-import json
-from pathlib import Path
+import streamlit as st  # noqa: E402
+import sys  # noqa: E402
+import json  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 # Add the parent directory to the path to import podcast_creator
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Import utilities
-from utils import EpisodeManager, ProfileManager, ContentExtractor, run_async_in_streamlit, ErrorHandler, VoiceProvider, ProviderChecker
+from utils import EpisodeManager, ProfileManager, ContentExtractor, run_async_in_streamlit, ErrorHandler, VoiceProvider, ProviderChecker  # noqa: E402
 
 # Use current working directory for all profile management
 WORKING_DIR = Path.cwd()
@@ -1166,11 +1166,7 @@ def show_generate_podcast_page():
         # Display content pieces
         if st.session_state.content_pieces:
             st.markdown("### Content Pieces")
-            
-            total_content = ""
-            total_chars = 0
-            total_words = 0
-            
+
             for i, piece in enumerate(st.session_state.content_pieces):
                 with st.container(border=True):
                     col1, col2, col3 = st.columns([3, 1, 1])
@@ -1207,11 +1203,7 @@ def show_generate_podcast_page():
                         if st.button("🗑️", key=f"delete_content_{i}", help="Delete"):
                             st.session_state.content_pieces.pop(i)
                             st.rerun()
-                
-                # Add to statistics
-                total_chars += piece_stats['character_count']
-                total_words += piece_stats['word_count']
-            
+
             # Actions
             if st.button("🔄 Clear All Content", type="secondary"):
                 st.session_state.content_pieces = []
@@ -1219,16 +1211,9 @@ def show_generate_podcast_page():
             
             # Set content for generation (pass array instead of concatenated string)
             content_pieces = st.session_state.content_pieces
-            content_stats = {
-                'character_count': total_chars,
-                'word_count': total_words,
-                'paragraph_count': len(st.session_state.content_pieces),  # Number of pieces instead of paragraphs
-                'estimated_reading_time': max(1, total_words // 200)
-            }
         else:
             st.info("📝 No content added yet. Use the 'Add Content' section above to add text, files, or URLs.")
             content_pieces = []
-            content_stats = None
         
         st.markdown("---")
         
