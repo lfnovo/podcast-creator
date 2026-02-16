@@ -1412,7 +1412,7 @@ def show_generate_podcast_page():
                 try:
                     from podcast_creator import create_podcast, configure
                     # Configure to use current working directory
-                    configure(working_dir=str(WORKING_DIR))
+                    configure("working_dir", str(WORKING_DIR))
                     podcast_creator_available = True
                 except ImportError:
                     podcast_creator_available = False
