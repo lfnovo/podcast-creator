@@ -12,6 +12,7 @@ from .core import (
     clean_thinking_content,
     combine_audio_files,
     create_validated_transcript_parser,
+    extract_text_content,
     get_outline_prompter,
     get_transcript_prompter,
     outline_parser,
@@ -48,8 +49,9 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
     )
 
     outline_preview = await outline_model.ainvoke(outline_prompt_text)
-    outline_preview.content = clean_thinking_content(outline_preview.content)
-    outline_result = outline_parser.invoke(outline_preview.content)
+    content = extract_text_content(outline_preview.content)
+    content = clean_thinking_content(content)
+    outline_result = outline_parser.invoke(content)
 
     logger.info(f"Generated outline with {len(outline_result.segments)} segments")
 
@@ -108,8 +110,9 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
         transcript_prompt = get_transcript_prompter()
         transcript_prompt_rendered = transcript_prompt.render(data)
         transcript_preview = await transcript_model.ainvoke(transcript_prompt_rendered)
-        transcript_preview.content = clean_thinking_content(transcript_preview.content)
-        result = validated_transcript_parser.invoke(transcript_preview.content)
+        content = extract_text_content(transcript_preview.content)
+        content = clean_thinking_content(content)
+        result = validated_transcript_parser.invoke(content)
         transcript.extend(result.transcript)
 
     logger.info(f"Generated transcript with {len(transcript)} dialogue segments")
