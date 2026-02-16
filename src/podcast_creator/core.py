@@ -80,6 +80,35 @@ def clean_thinking_content(content: str) -> str:
     return cleaned_content
 
 
+def extract_text_content(content) -> str:
+    """Extract text from AIMessage content that may be a string or structured list.
+
+    Some LLM providers (e.g. Google Gemini, DeepSeek) return AIMessage.content
+    as a list of content parts instead of a plain string. This function normalizes
+    the content to a plain string before parsing.
+
+    Args:
+        content: The content from an AIMessage, which may be a string,
+            a list of dicts with "text" keys, a list of strings, or None.
+
+    Returns:
+        str: The extracted text content as a plain string.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, dict) and "text" in part:
+                text_parts.append(part["text"])
+            elif isinstance(part, str):
+                text_parts.append(part)
+        return "".join(text_parts)
+    if content is None:
+        return ""
+    return str(content)
+
+
 class Segment(BaseModel):
     name: str = Field(..., description="Name of the segment")
     description: str = Field(..., description="Description of the segment")

@@ -12,6 +12,7 @@ from .core import (
     Transcript,
     clean_thinking_content,
     combine_audio_files,
+    extract_text_content,
     parse_thinking_content,
 )
 from .graph import PodcastState, create_podcast
@@ -37,6 +38,7 @@ __all__ = [
     "PodcastConfig",
     # Core functions (kept for utilities)
     "combine_audio_files",
+    "extract_text_content",
     "parse_thinking_content",
     "clean_thinking_content",
     # Data models
