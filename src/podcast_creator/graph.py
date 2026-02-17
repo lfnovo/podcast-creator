@@ -88,8 +88,8 @@ async def create_podcast(
         transcript_provider = transcript_provider or episode_config.transcript_provider
         transcript_model = transcript_model or episode_config.transcript_model
         num_segments = num_segments or episode_config.num_segments
-        outline_config = outline_config or episode_config.outline_config
-        transcript_config = transcript_config or episode_config.transcript_config
+        outline_config = outline_config if outline_config is not None else episode_config.outline_config
+        transcript_config = transcript_config if transcript_config is not None else episode_config.transcript_config
 
         # Resolve briefing with episode profile logic
         if briefing:
