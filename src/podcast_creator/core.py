@@ -1,3 +1,4 @@
+import json
 import re
 import uuid
 from pathlib import Path
@@ -15,6 +16,9 @@ THINK_PATTERN = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 def parse_thinking_content(content: str) -> Tuple[str, str]:
     """
     Parse message content to extract thinking content from <think> tags.
+
+    Handles both closed tags (<think>...</think>) and unclosed tags
+    (<think>... without closing tag) that some models produce.
 
     Args:
         content (str): The original message content
@@ -40,17 +44,52 @@ def parse_thinking_content(content: str) -> Tuple[str, str]:
     if len(content) > 100000:
         return "", content
 
-    # Find all thinking blocks
+    # Step 1: Handle closed <think>...</think> tags
     thinking_matches = THINK_PATTERN.findall(content)
 
-    if not thinking_matches:
-        return "", content
+    if thinking_matches:
+        thinking_content = "\n\n".join(match.strip() for match in thinking_matches)
+        cleaned_content = THINK_PATTERN.sub("", content)
+    else:
+        thinking_content = ""
+        cleaned_content = content
 
-    # Join all thinking content with double newlines
-    thinking_content = "\n\n".join(match.strip() for match in thinking_matches)
+    # Step 2: Handle unclosed <think> tags (no matching </think>)
+    if "<think>" in cleaned_content:
+        think_idx = cleaned_content.index("<think>")
+        before = cleaned_content[:think_idx]
+        after = cleaned_content[think_idx + len("<think>"):]
 
-    # Remove all <think>...</think> blocks from the original content
-    cleaned_content = THINK_PATTERN.sub("", content)
+        # Find valid JSON in the remaining content using raw_decode,
+        # which can parse JSON starting at any position and ignores trailing text.
+        decoder = json.JSONDecoder()
+        json_pos = None
+        for m in re.finditer(r"[\{\[]", after):
+            try:
+                decoder.raw_decode(after, m.start())
+                json_pos = m.start()
+                break
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+        if json_pos is not None:
+            unclosed_thinking = after[:json_pos].strip()
+            json_content = after[json_pos:].strip()
+            thinking_content = (
+                (thinking_content + "\n\n" + unclosed_thinking).strip()
+                if thinking_content
+                else unclosed_thinking
+            )
+            cleaned_content = (before + json_content).strip()
+        else:
+            # No valid JSON found, treat everything after <think> as thinking
+            unclosed_thinking = after.strip()
+            thinking_content = (
+                (thinking_content + "\n\n" + unclosed_thinking).strip()
+                if thinking_content
+                else unclosed_thinking
+            )
+            cleaned_content = before.strip()
 
     # Clean up extra whitespace
     cleaned_content = re.sub(r"\n\s*\n\s*\n", "\n\n", cleaned_content).strip()
