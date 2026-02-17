@@ -85,20 +85,6 @@ class TestParseThinkingContent:
         assert thinking == ""
         assert cleaned == content
 
-    def test_closed_think_tags(self):
-        """Standard <think>...</think> tags are removed"""
-        content = '<think>Let me analyze this</think>{"answer": "yes"}'
-        thinking, cleaned = parse_thinking_content(content)
-        assert thinking == "Let me analyze this"
-        assert cleaned == '{"answer": "yes"}'
-
-    def test_no_think_tags(self):
-        """Content without think tags is returned as-is"""
-        content = '{"transcript": [{"speaker": "Alice", "dialogue": "Hello"}]}'
-        thinking, cleaned = parse_thinking_content(content)
-        assert thinking == ""
-        assert cleaned == content
-
     def test_unclosed_think_tag_json_same_line(self):
         """Unclosed <think> with JSON starting on same line as thinking text"""
         content = (
