@@ -1,6 +1,6 @@
 [project]
 name = "podcast-creator"
-version = "0.10.0"
+version = "0.11.0"
 license = "MIT"
 description = "AI-powered podcast generation tool that creates conversational audio content from text sources"
 readme = "README.md"
@@ -17,6 +17,7 @@ dependencies = [
     "pydub>=0.25.1",
     "python-dotenv>=1.1.1",
     "requests>=2.0",
+    "tenacity>=8.2.0",
     "tiktoken>=0.9.0",
 ]
 

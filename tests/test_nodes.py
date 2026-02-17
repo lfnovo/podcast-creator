@@ -513,6 +513,75 @@ class TestPerSpeakerTtsOverride:
         assert alice_info["tts_config"] == {"api_key": "sk-profile", "stability": 0.5}
 
 
+class TestTtsRetry:
+    """Tests for retry behavior on generate_single_audio_clip"""
+
+    @patch("podcast_creator.nodes.AIFactory")
+    def test_retries_on_transient_tts_error(self, mock_factory):
+        """generate_single_audio_clip retries on transient TTS errors"""
+        mock_tts = MagicMock()
+        # Fail twice, then succeed on third call
+        mock_tts.agenerate_speech = AsyncMock(
+            side_effect=[
+                RuntimeError("connection reset"),
+                RuntimeError("timeout"),
+                None,
+            ]
+        )
+        mock_factory.create_text_to_speech.return_value = mock_tts
+
+        dialogue = MagicMock()
+        dialogue.speaker = "Alice"
+        dialogue.dialogue = "Hello world"
+
+        dialogue_info = {
+            "dialogue": dialogue,
+            "index": 0,
+            "output_dir": Path("/tmp/test_output"),
+            "tts_provider": "openai",
+            "tts_model": "tts-1",
+            "voices": {"Alice": "shimmer"},
+            "tts_config": {},
+        }
+
+        with patch("pathlib.Path.mkdir"):
+            result = asyncio.run(generate_single_audio_clip(dialogue_info))
+
+        assert mock_tts.agenerate_speech.call_count == 3
+        assert result == Path("/tmp/test_output/clips/0000.mp3")
+
+    @patch("podcast_creator.nodes.AIFactory")
+    def test_no_retry_on_value_error(self, mock_factory):
+        """generate_single_audio_clip does not retry ValueError"""
+        mock_tts = MagicMock()
+        mock_tts.agenerate_speech = AsyncMock(
+            side_effect=ValueError("invalid voice")
+        )
+        mock_factory.create_text_to_speech.return_value = mock_tts
+
+        dialogue = MagicMock()
+        dialogue.speaker = "Alice"
+        dialogue.dialogue = "Hello"
+
+        dialogue_info = {
+            "dialogue": dialogue,
+            "index": 0,
+            "output_dir": Path("/tmp/test_output"),
+            "tts_provider": "openai",
+            "tts_model": "tts-1",
+            "voices": {"Alice": "shimmer"},
+            "tts_config": {},
+        }
+
+        import pytest
+
+        with patch("pathlib.Path.mkdir"):
+            with pytest.raises(ValueError, match="invalid voice"):
+                asyncio.run(generate_single_audio_clip(dialogue_info))
+
+        assert mock_tts.agenerate_speech.call_count == 1
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

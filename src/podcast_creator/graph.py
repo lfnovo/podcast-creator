@@ -54,6 +54,8 @@ async def create_podcast(
     briefing_suffix: Optional[str] = None,
     outline_config: Optional[Dict] = None,
     transcript_config: Optional[Dict] = None,
+    retry_max_attempts: Optional[int] = None,
+    retry_wait_multiplier: Optional[int] = None,
 ) -> Dict:
     """
     High-level function to create a podcast using the LangGraph workflow
@@ -73,6 +75,8 @@ async def create_podcast(
         briefing_suffix: Additional briefing text to append to profile default
         outline_config: Config dict passed to AIFactory.create_language() for outline
         transcript_config: Config dict passed to AIFactory.create_language() for transcript
+        retry_max_attempts: Max retry attempts for LLM calls (default 3)
+        retry_wait_multiplier: Exponential backoff multiplier in seconds (default 2)
 
     Returns:
         Dict with results including final audio path
@@ -143,16 +147,20 @@ async def create_podcast(
     )
 
     # Create configuration
-    config = {
-        "configurable": {
-            "outline_provider": outline_provider,
-            "outline_model": outline_model,
-            "transcript_provider": transcript_provider,
-            "transcript_model": transcript_model,
-            "outline_config": outline_config,
-            "transcript_config": transcript_config,
-        }
+    configurable: Dict = {
+        "outline_provider": outline_provider,
+        "outline_model": outline_model,
+        "transcript_provider": transcript_provider,
+        "transcript_model": transcript_model,
+        "outline_config": outline_config,
+        "transcript_config": transcript_config,
     }
+    if retry_max_attempts is not None:
+        configurable["retry_max_attempts"] = retry_max_attempts
+    if retry_wait_multiplier is not None:
+        configurable["retry_wait_multiplier"] = retry_wait_multiplier
+
+    config = {"configurable": configurable}
 
     # Create and run the graph
     result = await graph.ainvoke(initial_state, config=config)

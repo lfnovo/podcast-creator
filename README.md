@@ -237,6 +237,7 @@ configure("speakers_config", {
 - **🎨 Web Interface**: Complete Streamlit UI for visual podcast creation
 - **🎯 Episode Profiles**: Pre-configured settings for one-liner podcast creation
 - **🔄 LangGraph Workflow**: Advanced state management and parallel processing
+- **🔁 Automatic Retry**: Exponential backoff for transient API failures (LLM & TTS)
 - **👥 Multi-Speaker Support**: Dynamic 1-4 speaker configurations with rich personalities
 - **⚡ Parallel Audio Generation**: API-safe batching with concurrent processing
 - **🔧 Fully Configurable**: Multiple AI providers (OpenAI, Anthropic, Google, etc.)
@@ -610,6 +611,32 @@ This is particularly useful for:
 - **Other TTS providers** with stricter rate limits
 - **Debugging**: Set to 1 for sequential processing
 
+### 🔁 Retry Configuration
+
+LLM and TTS API calls automatically retry on transient failures (network errors, timeouts, rate limits) with exponential backoff. Programming errors like `ValueError` or `TypeError` are raised immediately without retry.
+
+```bash
+# In your .env file
+PODCAST_RETRY_MAX_ATTEMPTS=3       # Max retry attempts (default: 3)
+PODCAST_RETRY_WAIT_MULTIPLIER=2    # Backoff multiplier in seconds (default: 2)
+PODCAST_RETRY_WAIT_MAX=30          # Max wait between retries in seconds (default: 30)
+```
+
+You can also configure retries programmatically for LLM calls (outline and transcript generation):
+
+```python
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="tech_discussion",
+    episode_name="my_podcast",
+    output_dir="output/my_podcast",
+    retry_max_attempts=5,        # Override default
+    retry_wait_multiplier=3,     # Override default
+)
+```
+
+To disable retries entirely, set `PODCAST_RETRY_MAX_ATTEMPTS=1`.
+
 ### 🌐 Proxy Configuration
 
 If you're behind a corporate firewall or need to route requests through a proxy, use standard environment variables:
@@ -658,6 +685,7 @@ podcast-creator/
 │       ├── core.py               # Core utilities
 │       ├── graph.py              # LangGraph workflow
 │       ├── nodes.py              # Workflow nodes
+│       ├── retry.py              # Retry utilities with exponential backoff
 │       ├── speakers.py           # Speaker management
 │       ├── episodes.py           # Episode profile management
 │       ├── state.py              # State management

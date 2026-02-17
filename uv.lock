@@ -3082,7 +3082,7 @@ wheels = [
 
 [[package]]
 name = "podcast-creator"
-version = "0.10.0"
+version = "0.11.0"
 source = { editable = "." }
 dependencies = [
     { name = "ai-prompter" },
@@ -3096,6 +3096,7 @@ dependencies = [
     { name = "pydub" },
     { name = "python-dotenv" },
     { name = "requests" },
+    { name = "tenacity" },
     { name = "tiktoken" },
 ]
 
@@ -3131,6 +3132,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "requests", specifier = ">=2.0" },
     { name = "streamlit", marker = "extra == 'ui'", specifier = ">=1.44.0" },
+    { name = "tenacity", specifier = ">=8.2.0" },
     { name = "tiktoken", specifier = ">=0.9.0" },
 ]
 provides-extras = ["ui"]

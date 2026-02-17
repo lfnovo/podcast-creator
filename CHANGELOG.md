@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-02-17
+
+### Added
+- Automatic retry with exponential backoff for transient failures in LLM and TTS API calls using tenacity
+- New `retry.py` module with configurable retry logic (max attempts, backoff multiplier, max wait)
+- Non-retryable exceptions (ValueError, TypeError, etc.) are raised immediately without retry
+- Environment variable configuration: `PODCAST_RETRY_MAX_ATTEMPTS`, `PODCAST_RETRY_WAIT_MULTIPLIER`, `PODCAST_RETRY_WAIT_MAX`
+- Programmatic retry configuration via `retry_max_attempts` and `retry_wait_multiplier` parameters in `create_podcast()`
+
 ## [0.10.0] - 2026-02-17
 
 ### Added

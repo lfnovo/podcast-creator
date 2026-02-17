@@ -17,7 +17,11 @@ from .core import (
     get_transcript_prompter,
     outline_parser,
 )
+from .retry import create_retry_decorator, get_retry_config
 from .state import PodcastState
+
+# Module-level TTS retry decorator (configured via env vars)
+_tts_retry = create_retry_decorator(**get_retry_config())
 
 
 async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> Dict:
@@ -41,6 +45,14 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
         config=merged_config,
     ).to_langchain()
 
+    # Build retry decorator from configurable settings
+    retry_cfg = get_retry_config(configurable)
+    llm_retry = create_retry_decorator(**retry_cfg)
+
+    @llm_retry
+    async def _invoke_llm(prompt_text: str):
+        return await outline_model.ainvoke(prompt_text)
+
     # Generate outline
     outline_prompt = get_outline_prompter()
     outline_prompt_text = outline_prompt.render(
@@ -54,7 +66,7 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
         }
     )
 
-    outline_preview = await outline_model.ainvoke(outline_prompt_text)
+    outline_preview = await _invoke_llm(outline_prompt_text)
     content = extract_text_content(outline_preview.content)
     content = clean_thinking_content(content)
     outline_result = outline_parser.invoke(content)
@@ -94,6 +106,14 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
     speaker_names = speaker_profile.get_speaker_names()
     validated_transcript_parser = create_validated_transcript_parser(speaker_names)
 
+    # Build retry decorator from configurable settings
+    retry_cfg = get_retry_config(configurable)
+    llm_retry = create_retry_decorator(**retry_cfg)
+
+    @llm_retry
+    async def _invoke_llm(prompt_text: str):
+        return await transcript_model.ainvoke(prompt_text)
+
     # Generate transcript for each segment
     outline = state["outline"]
     assert outline is not None, "outline must be provided"
@@ -121,7 +141,7 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
 
         transcript_prompt = get_transcript_prompter()
         transcript_prompt_rendered = transcript_prompt.render(data)
-        transcript_preview = await transcript_model.ainvoke(transcript_prompt_rendered)
+        transcript_preview = await _invoke_llm(transcript_prompt_rendered)
         content = extract_text_content(transcript_preview.content)
         content = clean_thinking_content(content)
         result = validated_transcript_parser.invoke(content)
@@ -212,6 +232,7 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
     return {"audio_clips": all_clip_paths}
 
 
+@_tts_retry
 async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
     """Generate a single audio clip"""
     dialogue = dialogue_info["dialogue"]
