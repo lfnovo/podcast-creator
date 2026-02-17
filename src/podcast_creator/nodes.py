@@ -20,9 +20,6 @@ from .core import (
 from .retry import create_retry_decorator, get_retry_config
 from .state import PodcastState
 
-# Module-level TTS retry decorator (configured via env vars)
-_tts_retry = create_retry_decorator(**get_retry_config())
-
 
 async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> Dict:
     """Generate podcast outline from content and briefing"""
@@ -185,6 +182,15 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
     voices = speaker_profile.get_voice_mapping()
     tts_config = speaker_profile.tts_config or {}
 
+    # Build retry decorator from configurable settings
+    configurable = config.get("configurable", {})
+    retry_cfg = get_retry_config(configurable)
+    tts_retry = create_retry_decorator(**retry_cfg)
+
+    @tts_retry
+    async def _generate_clip(dialogue_info: Dict) -> Path:
+        return await generate_single_audio_clip(dialogue_info)
+
     logger.info(
         f"Generating {total_segments} audio clips in sequential batches of {batch_size}"
     )
@@ -214,7 +220,7 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
                 "voices": voices,
                 "tts_config": speaker.tts_config if speaker.tts_config is not None else tts_config,
             }
-            task = generate_single_audio_clip(dialogue_info)
+            task = _generate_clip(dialogue_info)
             batch_tasks.append(task)
 
         # Process this batch concurrently (but wait before next batch)
@@ -232,7 +238,6 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
     return {"audio_clips": all_clip_paths}
 
 
-@_tts_retry
 async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
     """Generate a single audio clip"""
     dialogue = dialogue_info["dialogue"]

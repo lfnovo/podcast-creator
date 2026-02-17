@@ -514,11 +514,40 @@ class TestPerSpeakerTtsOverride:
 
 
 class TestTtsRetry:
-    """Tests for retry behavior on generate_single_audio_clip"""
+    """Tests for retry behavior on TTS calls via generate_all_audio_node"""
+
+    def _make_state(self, transcript_speakers):
+        """Helper to build a minimal state for generate_all_audio_node."""
+        from podcast_creator.speakers import Speaker, SpeakerProfile
+
+        speaker_objs = [
+            Speaker(name=name, voice_id=f"v_{name}", backstory="b", personality="p")
+            for name in transcript_speakers
+        ]
+
+        profile = SpeakerProfile(
+            tts_provider="openai",
+            tts_model="tts-1",
+            speakers=speaker_objs,
+        )
+
+        transcript = []
+        for name in transcript_speakers:
+            d = MagicMock()
+            d.speaker = name
+            d.dialogue = f"Hello from {name}"
+            transcript.append(d)
+
+        return {
+            "transcript": transcript,
+            "output_dir": Path("/tmp/test_output"),
+            "speaker_profile": profile,
+        }
 
     @patch("podcast_creator.nodes.AIFactory")
-    def test_retries_on_transient_tts_error(self, mock_factory):
-        """generate_single_audio_clip retries on transient TTS errors"""
+    @patch("podcast_creator.nodes.asyncio.sleep", new_callable=AsyncMock)
+    def test_retries_on_transient_tts_error(self, mock_sleep, mock_factory):
+        """generate_all_audio_node retries TTS calls on transient errors"""
         mock_tts = MagicMock()
         # Fail twice, then succeed on third call
         mock_tts.agenerate_speech = AsyncMock(
@@ -530,56 +559,62 @@ class TestTtsRetry:
         )
         mock_factory.create_text_to_speech.return_value = mock_tts
 
-        dialogue = MagicMock()
-        dialogue.speaker = "Alice"
-        dialogue.dialogue = "Hello world"
+        state = self._make_state(["Alice"])
+        config = {"configurable": {}}
 
-        dialogue_info = {
-            "dialogue": dialogue,
-            "index": 0,
-            "output_dir": Path("/tmp/test_output"),
-            "tts_provider": "openai",
-            "tts_model": "tts-1",
-            "voices": {"Alice": "shimmer"},
-            "tts_config": {},
-        }
+        from podcast_creator.nodes import generate_all_audio_node
 
         with patch("pathlib.Path.mkdir"):
-            result = asyncio.run(generate_single_audio_clip(dialogue_info))
+            asyncio.run(generate_all_audio_node(state, config))
 
         assert mock_tts.agenerate_speech.call_count == 3
-        assert result == Path("/tmp/test_output/clips/0000.mp3")
 
     @patch("podcast_creator.nodes.AIFactory")
-    def test_no_retry_on_value_error(self, mock_factory):
-        """generate_single_audio_clip does not retry ValueError"""
+    @patch("podcast_creator.nodes.asyncio.sleep", new_callable=AsyncMock)
+    def test_no_retry_on_value_error(self, mock_sleep, mock_factory):
+        """generate_all_audio_node does not retry ValueError from TTS"""
         mock_tts = MagicMock()
         mock_tts.agenerate_speech = AsyncMock(
             side_effect=ValueError("invalid voice")
         )
         mock_factory.create_text_to_speech.return_value = mock_tts
 
-        dialogue = MagicMock()
-        dialogue.speaker = "Alice"
-        dialogue.dialogue = "Hello"
-
-        dialogue_info = {
-            "dialogue": dialogue,
-            "index": 0,
-            "output_dir": Path("/tmp/test_output"),
-            "tts_provider": "openai",
-            "tts_model": "tts-1",
-            "voices": {"Alice": "shimmer"},
-            "tts_config": {},
-        }
+        state = self._make_state(["Alice"])
+        config = {"configurable": {}}
 
         import pytest
 
+        from podcast_creator.nodes import generate_all_audio_node
+
         with patch("pathlib.Path.mkdir"):
             with pytest.raises(ValueError, match="invalid voice"):
-                asyncio.run(generate_single_audio_clip(dialogue_info))
+                asyncio.run(generate_all_audio_node(state, config))
 
         assert mock_tts.agenerate_speech.call_count == 1
+
+    @patch("podcast_creator.nodes.AIFactory")
+    @patch("podcast_creator.nodes.asyncio.sleep", new_callable=AsyncMock)
+    def test_respects_configurable_retry_settings(self, mock_sleep, mock_factory):
+        """Retry config from configurable dict is respected for TTS"""
+        mock_tts = MagicMock()
+        # Always fails — with max_attempts=2 we expect exactly 2 calls
+        mock_tts.agenerate_speech = AsyncMock(
+            side_effect=RuntimeError("always fails")
+        )
+        mock_factory.create_text_to_speech.return_value = mock_tts
+
+        state = self._make_state(["Alice"])
+        config = {"configurable": {"retry_max_attempts": 2}}
+
+        import pytest
+
+        from podcast_creator.nodes import generate_all_audio_node
+
+        with patch("pathlib.Path.mkdir"):
+            with pytest.raises(RuntimeError, match="always fails"):
+                asyncio.run(generate_all_audio_node(state, config))
+
+        assert mock_tts.agenerate_speech.call_count == 2
 
 
 if __name__ == "__main__":
