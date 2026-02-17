@@ -112,3 +112,75 @@ class TestCreateRetryDecorator:
         with pytest.raises(RuntimeError, match="still broken"):
             always_fails()
         assert call_count == 2
+
+    def test_does_not_retry_http_4xx_errors(self):
+        """HTTP 4xx client errors (e.g. 404 NotFound) are not retried."""
+        call_count = 0
+
+        class NotFoundError(Exception):
+            status_code = 404
+
+        @create_retry_decorator(max_attempts=3, wait_multiplier=0, wait_max=0)
+        def model_not_found():
+            nonlocal call_count
+            call_count += 1
+            raise NotFoundError("model does not exist")
+
+        with pytest.raises(NotFoundError):
+            model_not_found()
+        assert call_count == 1
+
+    def test_does_not_retry_http_401(self):
+        """HTTP 401 Unauthorized is not retried."""
+        call_count = 0
+
+        class AuthenticationError(Exception):
+            status_code = 401
+
+        @create_retry_decorator(max_attempts=3, wait_multiplier=0, wait_max=0)
+        def bad_auth():
+            nonlocal call_count
+            call_count += 1
+            raise AuthenticationError("invalid api key")
+
+        with pytest.raises(AuthenticationError):
+            bad_auth()
+        assert call_count == 1
+
+    def test_retries_http_429_rate_limit(self):
+        """HTTP 429 rate-limit errors ARE retried."""
+        call_count = 0
+
+        class RateLimitError(Exception):
+            status_code = 429
+
+        @create_retry_decorator(max_attempts=3, wait_multiplier=0, wait_max=0)
+        def rate_limited():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise RateLimitError("too many requests")
+            return "ok"
+
+        result = rate_limited()
+        assert result == "ok"
+        assert call_count == 3
+
+    def test_retries_http_500_server_error(self):
+        """HTTP 5xx server errors ARE retried."""
+        call_count = 0
+
+        class ServerError(Exception):
+            status_code = 500
+
+        @create_retry_decorator(max_attempts=3, wait_multiplier=0, wait_max=0)
+        def server_down():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise ServerError("internal server error")
+            return "ok"
+
+        result = server_down()
+        assert result == "ok"
+        assert call_count == 2

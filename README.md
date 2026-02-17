@@ -613,12 +613,12 @@ This is particularly useful for:
 
 ### 🔁 Retry Configuration
 
-LLM and TTS API calls automatically retry on transient failures (network errors, timeouts, rate limits) with exponential backoff. Programming errors like `ValueError` or `TypeError` are raised immediately without retry.
+LLM and TTS API calls automatically retry on transient failures (network errors, timeouts, rate limits) with exponential backoff. Non-retryable errors are raised immediately without retry — this includes programming errors (e.g. `ValueError`) and HTTP 4xx client errors (e.g. 404 model not found, 401 auth failure), except 429 rate-limit which is retried.
 
 ```bash
 # In your .env file
 PODCAST_RETRY_MAX_ATTEMPTS=3       # Max retry attempts (default: 3)
-PODCAST_RETRY_WAIT_MULTIPLIER=2    # Backoff multiplier in seconds (default: 2)
+PODCAST_RETRY_WAIT_MULTIPLIER=5    # Backoff multiplier in seconds (default: 5)
 PODCAST_RETRY_WAIT_MAX=30          # Max wait between retries in seconds (default: 30)
 ```
 

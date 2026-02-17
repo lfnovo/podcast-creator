@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-02-17
+
+### Fixed
+- HTTP 4xx client errors (e.g. 404 model not found, 401 auth failure) are no longer retried — only transient errors and 429 rate-limit are retried
+- Increased default retry backoff multiplier from 2s to 5s for more reasonable wait times
+
 ## [0.11.0] - 2026-02-17
 
 ### Added
