@@ -35,7 +35,7 @@ class TestEpisodeProfile:
     def test_episode_profile_defaults(self):
         """Test episode profile with default values"""
         profile = EpisodeProfile(speaker_config="ai_researchers")
-        
+
         assert profile.speaker_config == "ai_researchers"
         assert profile.outline_provider == "openai"
         assert profile.outline_model == "gpt-4o-mini"
@@ -43,6 +43,37 @@ class TestEpisodeProfile:
         assert profile.transcript_model == "claude-3-5-sonnet-latest"
         assert profile.default_briefing == ""
         assert profile.num_segments == 3
+        assert profile.outline_config is None
+        assert profile.transcript_config is None
+
+    def test_episode_profile_with_configs(self):
+        """Test episode profile creation with outline/transcript configs"""
+        profile = EpisodeProfile(
+            speaker_config="ai_researchers",
+            outline_config={"temperature": 0.7, "api_key": "sk-test"},
+            transcript_config={"max_tokens": 8000, "temperature": 0.9},
+        )
+        assert profile.outline_config == {"temperature": 0.7, "api_key": "sk-test"}
+        assert profile.transcript_config == {"max_tokens": 8000, "temperature": 0.9}
+
+    def test_episode_profile_from_json_with_configs(self, tmp_path):
+        """Test loading episode profile with config fields from JSON"""
+        config_data = {
+            "profiles": {
+                "custom": {
+                    "speaker_config": "ai_researchers",
+                    "outline_config": {"temperature": 0.5},
+                    "transcript_config": {"api_key": "sk-test"},
+                }
+            }
+        }
+        config_file = tmp_path / "episodes_config.json"
+        config_file.write_text(json.dumps(config_data))
+
+        config = EpisodeConfig.load_from_file(config_file)
+        profile = config.get_profile("custom")
+        assert profile.outline_config == {"temperature": 0.5}
+        assert profile.transcript_config == {"api_key": "sk-test"}
 
     def test_episode_profile_validation_speaker_config(self):
         """Test speaker config validation"""

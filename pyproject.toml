@@ -1,6 +1,6 @@
 [project]
 name = "podcast-creator"
-version = "0.9.4"
+version = "0.10.0"
 license = "MIT"
 description = "AI-powered podcast generation tool that creates conversational audio content from text sources"
 readme = "README.md"
@@ -9,7 +9,7 @@ dependencies = [
     "ai-prompter>=0.3.1",
     "click>=8.0.0",
     "content-core>=1.14.1",
-    "esperanto>=2.18.0",
+    "esperanto>=2.19.4",
     "langgraph>=1.0.6",
     "loguru>=0.7.3",
     "moviepy>=2.2.1",

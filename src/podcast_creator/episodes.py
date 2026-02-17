@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, Union
+from typing import Any, Dict, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -23,6 +23,12 @@ class EpisodeProfile(BaseModel):
         "", description="Default briefing for this episode type"
     )
     num_segments: int = Field(3, description="Number of podcast segments")
+    outline_config: Optional[Dict[str, Any]] = Field(
+        None, description="Config dict passed to AIFactory.create_language() for outline generation"
+    )
+    transcript_config: Optional[Dict[str, Any]] = Field(
+        None, description="Config dict passed to AIFactory.create_language() for transcript generation"
+    )
 
     @field_validator("speaker_config")
     @classmethod

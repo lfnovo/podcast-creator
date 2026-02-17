@@ -52,6 +52,8 @@ async def create_podcast(
     num_segments: Optional[int] = None,
     episode_profile: Optional[str] = None,
     briefing_suffix: Optional[str] = None,
+    outline_config: Optional[Dict] = None,
+    transcript_config: Optional[Dict] = None,
 ) -> Dict:
     """
     High-level function to create a podcast using the LangGraph workflow
@@ -69,6 +71,8 @@ async def create_podcast(
         num_segments: Number of podcast segments
         episode_profile: Episode profile name to use for defaults
         briefing_suffix: Additional briefing text to append to profile default
+        outline_config: Config dict passed to AIFactory.create_language() for outline
+        transcript_config: Config dict passed to AIFactory.create_language() for transcript
 
     Returns:
         Dict with results including final audio path
@@ -84,7 +88,9 @@ async def create_podcast(
         transcript_provider = transcript_provider or episode_config.transcript_provider
         transcript_model = transcript_model or episode_config.transcript_model
         num_segments = num_segments or episode_config.num_segments
-        
+        outline_config = outline_config if outline_config is not None else episode_config.outline_config
+        transcript_config = transcript_config if transcript_config is not None else episode_config.transcript_config
+
         # Resolve briefing with episode profile logic
         if briefing:
             # Explicit briefing overrides everything
@@ -143,6 +149,8 @@ async def create_podcast(
             "outline_model": outline_model,
             "transcript_provider": transcript_provider,
             "transcript_model": transcript_model,
+            "outline_config": outline_config,
+            "transcript_config": transcript_config,
         }
     }
 

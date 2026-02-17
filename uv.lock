@@ -811,15 +811,15 @@ wheels = [
 
 [[package]]
 name = "esperanto"
-version = "2.18.0"
+version = "2.19.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/64/f1/1b34dc08a293b6f00291611799fc04074e3c7cadf9578b26f2329c20b91d/esperanto-2.18.0.tar.gz", hash = "sha256:8743fdaeb810b0354ae127a8ca875947c4e57db4d0336543a862f2dd213735fd", size = 849402, upload-time = "2026-01-30T00:40:09.038Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/85/8b4761f16675a11fcc3615186ae8fdbb4612b0a05fe54b9ec29176c7301d/esperanto-2.19.4.tar.gz", hash = "sha256:c52506b1c9ff877a8c8723745826589f064af93395fa38a20bb4ad1c6cc71184", size = 833497, upload-time = "2026-02-17T21:17:08.962Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/21/9b/163225ef2b723a8edf06003c82888a73b8ad3fbb97bc12aed62867f4381d/esperanto-2.18.0-py3-none-any.whl", hash = "sha256:dfcec77ed81a195aa222636f7b70024c73c4282f3bcad13edb000ad1f4224903", size = 201374, upload-time = "2026-01-30T00:40:10.607Z" },
+    { url = "https://files.pythonhosted.org/packages/70/b4/32094bd554e8b8d574bc4ff6c25ec558f14da30244248e504eef9210250a/esperanto-2.19.4-py3-none-any.whl", hash = "sha256:af605d5f2e63382b2f4426fff97aee59f9e000dcd2d7ddebf94d9fd7199703e9", size = 202495, upload-time = "2026-02-17T21:17:10.083Z" },
 ]
 
 [[package]]
@@ -3082,7 +3082,7 @@ wheels = [
 
 [[package]]
 name = "podcast-creator"
-version = "0.9.2"
+version = "0.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "ai-prompter" },
@@ -3122,7 +3122,7 @@ requires-dist = [
     { name = "ai-prompter", specifier = ">=0.3.1" },
     { name = "click", specifier = ">=8.0.0" },
     { name = "content-core", specifier = ">=1.14.1" },
-    { name = "esperanto", specifier = ">=2.18.0" },
+    { name = "esperanto", specifier = ">=2.19.4" },
     { name = "langgraph", specifier = ">=1.0.6" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "moviepy", specifier = ">=2.2.1" },

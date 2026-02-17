@@ -27,12 +27,18 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
     configurable = config.get("configurable", {})
     outline_provider = configurable.get("outline_provider", "openai")
     outline_model_name = configurable.get("outline_model", "gpt-4o-mini")
+    outline_config = configurable.get("outline_config") or {}
 
     # Create outline model
+    merged_config = {
+        "max_tokens": 3000,
+        "structured": {"type": "json"},
+        **outline_config,
+    }
     outline_model = AIFactory.create_language(
         outline_provider,
         outline_model_name,
-        config={"max_tokens": 3000, "structured": {"type": "json"}},
+        config=merged_config,
     ).to_langchain()
 
     # Generate outline
@@ -68,12 +74,18 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
     configurable = config.get("configurable", {})
     transcript_provider: str = configurable.get("transcript_provider", "openai")
     transcript_model_name: str = configurable.get("transcript_model", "gpt-4o-mini")
+    transcript_config = configurable.get("transcript_config") or {}
 
     # Create transcript model
+    merged_config = {
+        "max_tokens": 5000,
+        "structured": {"type": "json"},
+        **transcript_config,
+    }
     transcript_model = AIFactory.create_language(
         transcript_provider,
         transcript_model_name,
-        config={"max_tokens": 5000, "structured": {"type": "json"}},
+        config=merged_config,
     ).to_langchain()
 
     # Create validated transcript parser
@@ -151,6 +163,7 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
     tts_provider = speaker_profile.tts_provider
     tts_model = speaker_profile.tts_model
     voices = speaker_profile.get_voice_mapping()
+    tts_config = speaker_profile.tts_config or {}
 
     logger.info(
         f"Generating {total_segments} audio clips in sequential batches of {batch_size}"
@@ -171,13 +184,15 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
         # Create tasks for this batch
         batch_tasks = []
         for i in range(batch_start, batch_end):
+            speaker = speaker_profile.get_speaker_by_name(transcript[i].speaker)
             dialogue_info = {
                 "dialogue": transcript[i],
                 "index": i,
                 "output_dir": output_dir,
-                "tts_provider": tts_provider,
-                "tts_model": tts_model,
+                "tts_provider": speaker.tts_provider or tts_provider,
+                "tts_model": speaker.tts_model or tts_model,
                 "voices": voices,
+                "tts_config": speaker.tts_config if speaker.tts_config is not None else tts_config,
             }
             task = generate_single_audio_clip(dialogue_info)
             batch_tasks.append(task)
@@ -205,6 +220,7 @@ async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
     tts_provider = dialogue_info["tts_provider"]
     tts_model_name = dialogue_info["tts_model"]
     voices = dialogue_info["voices"]
+    tts_config = dict(dialogue_info.get("tts_config") or {})
 
     logger.info(f"Generating audio clip {index:04d} for {dialogue.speaker}")
 
@@ -216,8 +232,14 @@ async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
     filename = f"{index:04d}.mp3"
     clip_path = clips_dir / filename
 
+    # Extract named params from tts_config, pass rest as kwargs
+    api_key = tts_config.pop("api_key", None)
+    base_url = tts_config.pop("base_url", None)
+
     # Create TTS model
-    tts_model = AIFactory.create_text_to_speech(tts_provider, tts_model_name)
+    tts_model = AIFactory.create_text_to_speech(
+        tts_provider, tts_model_name, api_key=api_key, base_url=base_url, **tts_config
+    )
 
     # Generate audio
     await tts_model.agenerate_speech(

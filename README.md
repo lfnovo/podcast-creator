@@ -317,7 +317,7 @@ asyncio.run(main())
 ```python
 from podcast_creator import configure, create_podcast
 
-# Custom speaker configuration
+# Custom speaker configuration (with optional per-speaker TTS overrides)
 configure("speakers_config", {
     "profiles": {
         "tech_experts": {
@@ -331,10 +331,12 @@ configure("speakers_config", {
                     "personality": "Thoughtful, asks probing questions"
                 },
                 {
-                    "name": "Jamie Rodriguez", 
-                    "voice_id": "your_voice_id_2",
+                    "name": "Jamie Rodriguez",
+                    "voice_id": "alloy",
                     "backstory": "Tech journalist and startup advisor",
-                    "personality": "Enthusiastic, great at explanations"
+                    "personality": "Enthusiastic, great at explanations",
+                    "tts_provider": "openai",
+                    "tts_model": "tts-1"
                 }
             ]
         }
@@ -467,6 +469,40 @@ result = await create_podcast(...)
   }
 }
 ```
+
+### Per-Speaker TTS Overrides
+
+Individual speakers can override the profile-level TTS provider, model, and config. This lets you mix different TTS services within the same podcast — for example, one speaker on ElevenLabs and another on OpenAI TTS.
+
+```json
+{
+  "profiles": {
+    "mixed_providers": {
+      "tts_provider": "openai",
+      "tts_model": "tts-1",
+      "speakers": [
+        {
+          "name": "Dr. Sarah Chen",
+          "voice_id": "custom_eleven_voice_id",
+          "backstory": "AI researcher...",
+          "personality": "Analytical and methodical",
+          "tts_provider": "elevenlabs",
+          "tts_model": "eleven_flash_v2_5",
+          "tts_config": { "voice_settings": { "stability": 0.8 } }
+        },
+        {
+          "name": "Marcus Rivera",
+          "voice_id": "alloy",
+          "backstory": "Tech journalist...",
+          "personality": "Engaging and curious"
+        }
+      ]
+    }
+  }
+}
+```
+
+In this example, Dr. Sarah Chen uses ElevenLabs while Marcus Rivera uses the profile-level OpenAI TTS. All three fields (`tts_provider`, `tts_model`, `tts_config`) are optional per speaker — any field not set falls back to the profile-level value. If a speaker defines `tts_config`, it **replaces** the profile-level config entirely (no merging).
 
 ### Creating Custom Speakers
 

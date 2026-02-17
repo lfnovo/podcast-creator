@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -13,6 +13,15 @@ class Speaker(BaseModel):
     backstory: str = Field(..., description="Speaker's background and expertise")
     personality: str = Field(
         ..., description="Speaker's personality traits and speaking style"
+    )
+    tts_provider: Optional[str] = Field(
+        None, description="Override TTS provider for this speaker"
+    )
+    tts_model: Optional[str] = Field(
+        None, description="Override TTS model for this speaker"
+    )
+    tts_config: Optional[Dict[str, Any]] = Field(
+        None, description="Override TTS config for this speaker"
     )
 
     @field_validator("name")
@@ -31,6 +40,9 @@ class SpeakerProfile(BaseModel):
     )
     tts_model: str = Field(..., description="TTS model name")
     speakers: List[Speaker] = Field(..., description="List of speakers in this profile")
+    tts_config: Optional[Dict[str, Any]] = Field(
+        None, description="Config dict passed to AIFactory.create_text_to_speech()"
+    )
 
     @field_validator("speakers")
     @classmethod
