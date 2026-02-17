@@ -83,10 +83,16 @@ Each node in the workflow:
    - Reduces configuration from ~12 parameters to ~4
    - Profiles: `tech_discussion`, `solo_expert`, `business_analysis`, `diverse_panel`
 
+6. **Retry / Resilience** (`retry.py`):
+   - Tenacity-based retry with exponential backoff for transient API failures
+   - Non-retryable exceptions (ValueError, TypeError, etc.) bypass retry
+   - Configurable via `configurable` dict, env vars, or hardcoded defaults
+
 ### Important Design Patterns
 
 - **Async-First**: All AI operations are async for performance
 - **Batch Processing**: Audio generation respects API rate limits (5 clips/batch)
+- **Retry with Backoff**: LLM and TTS calls retry on transient errors (configurable via env vars or `create_podcast()` params)
 - **Validated Outputs**: Uses Pydantic models with runtime validation
 - **Resource Fallbacks**: Multiple paths for loading templates/configs
 - **Clean Dialogue**: Filters AI thinking tags (`<think>`) from TTS input
@@ -103,6 +109,7 @@ Each node in the workflow:
 - **esperanto**: Multi-provider AI abstraction
 - **ai-prompter**: Template management
 - **content-core**: Content extraction from files/URLs
+- **tenacity**: Retry with exponential backoff
 - **pydub/moviepy**: Audio processing
 
 This architecture enables flexible, scalable podcast generation while maintaining clean separation of concerns through configuration-driven design.
