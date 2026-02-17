@@ -152,7 +152,7 @@ class Segment(BaseModel):
     name: str = Field(..., description="Name of the segment")
     description: str = Field(..., description="Description of the segment")
     size: Literal["short", "medium", "long"] = Field(
-        ..., description="Size of the segment"
+        default="medium", description="Size of the segment"
     )
 
 
