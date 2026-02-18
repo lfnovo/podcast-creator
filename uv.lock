@@ -3082,7 +3082,7 @@ wheels = [
 
 [[package]]
 name = "podcast-creator"
-version = "0.11.1"
+version = "0.11.2"
 source = { editable = "." }
 dependencies = [
     { name = "ai-prompter" },

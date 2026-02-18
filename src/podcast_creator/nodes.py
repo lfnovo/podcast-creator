@@ -47,8 +47,11 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
     llm_retry = create_retry_decorator(**retry_cfg)
 
     @llm_retry
-    async def _invoke_llm(prompt_text: str):
-        return await outline_model.ainvoke(prompt_text)
+    async def _invoke_and_parse(prompt_text: str):
+        result = await outline_model.ainvoke(prompt_text)
+        content = extract_text_content(result.content)
+        content = clean_thinking_content(content)
+        return outline_parser.invoke(content)
 
     # Generate outline
     outline_prompt = get_outline_prompter()
@@ -63,10 +66,7 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
         }
     )
 
-    outline_preview = await _invoke_llm(outline_prompt_text)
-    content = extract_text_content(outline_preview.content)
-    content = clean_thinking_content(content)
-    outline_result = outline_parser.invoke(content)
+    outline_result = await _invoke_and_parse(outline_prompt_text)
 
     logger.info(f"Generated outline with {len(outline_result.segments)} segments")
 
@@ -108,8 +108,11 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
     llm_retry = create_retry_decorator(**retry_cfg)
 
     @llm_retry
-    async def _invoke_llm(prompt_text: str):
-        return await transcript_model.ainvoke(prompt_text)
+    async def _invoke_and_parse(prompt_text: str):
+        result = await transcript_model.ainvoke(prompt_text)
+        content = extract_text_content(result.content)
+        content = clean_thinking_content(content)
+        return validated_transcript_parser.invoke(content)
 
     # Generate transcript for each segment
     outline = state["outline"]
@@ -138,10 +141,7 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
 
         transcript_prompt = get_transcript_prompter()
         transcript_prompt_rendered = transcript_prompt.render(data)
-        transcript_preview = await _invoke_llm(transcript_prompt_rendered)
-        content = extract_text_content(transcript_preview.content)
-        content = clean_thinking_content(content)
-        result = validated_transcript_parser.invoke(content)
+        result = await _invoke_and_parse(transcript_prompt_rendered)
         transcript.extend(result.transcript)
 
     logger.info(f"Generated transcript with {len(transcript)} dialogue segments")
