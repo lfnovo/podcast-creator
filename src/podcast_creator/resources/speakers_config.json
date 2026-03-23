@@ -54,6 +54,25 @@
         }
       ]
     },
+    "camb_discussion": {
+      "tts_provider": "camb",
+      "tts_model": "mars-pro",
+      "tts_config": {"language": "en-us"},
+      "speakers": [
+        {
+          "name": "Dr. Sarah Chen",
+          "voice_id": "147320",
+          "backstory": "AI researcher with 15 years experience in machine learning and neural networks. Currently leads the AI Safety Initiative at Stanford University.",
+          "personality": "Analytical, methodical, asks probing questions about technical details and safety implications"
+        },
+        {
+          "name": "Marcus Rivera",
+          "voice_id": "147325",
+          "backstory": "Tech journalist and podcast host who specializes in making complex AI topics accessible to general audiences.",
+          "personality": "Engaging, curious, excellent at explaining complex concepts in simple terms and connecting with audiences"
+        }
+      ]
+    },
     "diverse_panel": {
       "tts_provider": "elevenlabs",
       "tts_model": "eleven_flash_v2_5",

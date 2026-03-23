@@ -9,6 +9,7 @@ dependencies = [
     "ai-prompter>=0.3.1",
     "click>=8.0.0",
     "content-core>=1.14.1",
+    "camb-sdk>=1.0.0",
     "esperanto>=2.19.4",
     "langgraph>=1.0.6",
     "loguru>=0.7.3",

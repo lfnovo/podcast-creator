@@ -340,6 +340,22 @@ wheels = [
 ]
 
 [[package]]
+name = "camb-sdk"
+version = "1.5.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+    { name = "websocket-client" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/50/38/31fcc633963804a150175078c167f237bbd56dedba9903e4800a630ab944/camb_sdk-1.5.10.tar.gz", hash = "sha256:e1d23cbccea5aef5944612740b5c2e109a3c3ce778caa9664678a23b3a254419", size = 83643, upload-time = "2026-03-12T11:40:36.822Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/12/f294bf4f343b663dced6d8ea840985d58b0afd66cd40e221fc19dc6639f4/camb_sdk-1.5.10-py3-none-any.whl", hash = "sha256:5ec6014af18cf108041c921f743fbcabc17015df2fc4b7a17793ef17d0fe593a", size = 152463, upload-time = "2026-03-12T11:38:37.934Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -811,15 +827,54 @@ wheels = [
 
 [[package]]
 name = "esperanto"
-version = "2.19.4"
-source = { registry = "https://pypi.org/simple" }
+version = "2.19.7"
+source = { editable = "../esperanto" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8a/85/8b4761f16675a11fcc3615186ae8fdbb4612b0a05fe54b9ec29176c7301d/esperanto-2.19.4.tar.gz", hash = "sha256:c52506b1c9ff877a8c8723745826589f064af93395fa38a20bb4ad1c6cc71184", size = 833497, upload-time = "2026-02-17T21:17:08.962Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/70/b4/32094bd554e8b8d574bc4ff6c25ec558f14da30244248e504eef9210250a/esperanto-2.19.4-py3-none-any.whl", hash = "sha256:af605d5f2e63382b2f4426fff97aee59f9e000dcd2d7ddebf94d9fd7199703e9", size = 202495, upload-time = "2026-02-17T21:17:10.083Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "accelerate", marker = "extra == 'transformers'", specifier = ">=1.12.0,<2.0.0" },
+    { name = "camb-sdk", marker = "extra == 'camb'", specifier = ">=1.0.0" },
+    { name = "einops", marker = "extra == 'transformers'", specifier = ">=0.8.1" },
+    { name = "httpx", specifier = ">=0.28.0" },
+    { name = "jsonschema", marker = "extra == 'validation'", specifier = ">=4.0.0,<5.0.0" },
+    { name = "numpy", marker = "extra == 'transformers'", specifier = ">=2.2.6,<3.0.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "scikit-learn", marker = "extra == 'transformers'", specifier = ">=1.7.2,<2.0.0" },
+    { name = "sentence-transformers", marker = "extra == 'transformers'", specifier = ">=5.2.0,<6.0.0" },
+    { name = "tokenizers", marker = "extra == 'transformers'", specifier = ">=0.22.1,<1.0.0" },
+    { name = "torch", marker = "extra == 'transformers'", specifier = ">=2.9.1,<3.0.0" },
+    { name = "transformers", marker = "extra == 'transformers'", specifier = ">=4.57.3,<5.0.0" },
+]
+provides-extras = ["transformers", "camb", "validation"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "build" },
+    { name = "ipykernel", specifier = ">=6.29.5" },
+    { name = "ipywidgets", specifier = ">=8.1.5" },
+    { name = "langchain", specifier = ">=1.2.4,<2.0.0" },
+    { name = "langchain-anthropic", specifier = ">=1.3.1,<2.0.0" },
+    { name = "langchain-core", specifier = ">=1.2.7,<2.0.0" },
+    { name = "langchain-deepseek", specifier = ">=1.0.1,<2.0.0" },
+    { name = "langchain-google-genai", specifier = ">=4.2.0,<5.0.0" },
+    { name = "langchain-groq", specifier = ">=1.1.1,<2.0.0" },
+    { name = "langchain-mistralai", specifier = ">=1.1.1,<2.0.0" },
+    { name = "langchain-ollama", specifier = ">=1.0.1,<2.0.0" },
+    { name = "langchain-openai", specifier = ">=1.1.7,<2.0.0" },
+    { name = "mypy", specifier = ">=1.14.1" },
+    { name = "pytest", specifier = ">=8.3.4" },
+    { name = "pytest-asyncio", specifier = ">=0.25.3" },
+    { name = "pytest-cov", specifier = ">=6.0.0" },
+    { name = "pytest-mock", specifier = ">=3.14.0" },
+    { name = "python-dotenv", specifier = ">=1.0.1" },
+    { name = "responses", specifier = ">=0.25.6" },
+    { name = "ruff", specifier = ">=0.8.4" },
+    { name = "twine" },
+    { name = "types-requests", specifier = ">=2.32.0.20241016" },
 ]
 
 [[package]]
@@ -3086,6 +3141,7 @@ version = "0.12.0"
 source = { editable = "." }
 dependencies = [
     { name = "ai-prompter" },
+    { name = "camb-sdk" },
     { name = "click" },
     { name = "content-core" },
     { name = "esperanto" },
@@ -3122,9 +3178,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "ai-prompter", specifier = ">=0.3.1" },
+    { name = "camb-sdk", specifier = ">=1.0.0" },
     { name = "click", specifier = ">=8.0.0" },
     { name = "content-core", specifier = ">=1.14.1" },
-    { name = "esperanto", specifier = ">=2.19.4" },
+    { name = "esperanto", editable = "../esperanto" },
     { name = "langgraph", specifier = ">=1.0.6" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "moviepy", specifier = ">=2.2.1" },
@@ -4815,6 +4872,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/05/07/0b5bcc9812b1b2fd331cc88289ef4d47d428afdbbf0216bb7d53942d93d6/wcwidth-0.3.2.tar.gz", hash = "sha256:d469b3059dab6b1077def5923ed0a8bf5738bd4a1a87f686d5e2de455354c4ad", size = 233633, upload-time = "2026-01-23T21:08:52.451Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/72/c6/1452e716c5af065c018f75d42ca97517a04ac6aae4133722e0424649a07c/wcwidth-0.3.2-py3-none-any.whl", hash = "sha256:817abc6a89e47242a349b5d100cbd244301690d6d8d2ec6335f26fe6640a6315", size = 86280, upload-time = "2026-01-23T21:08:51.362Z" },
+]
+
+[[package]]
+name = "websocket-client"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/41/aa4bf9664e4cda14c3b39865b12251e8e7d239f4cd0e3cc1b6c2ccde25c1/websocket_client-1.9.0.tar.gz", hash = "sha256:9e813624b6eb619999a97dc7958469217c3176312b3a16a4bd1bc7e08a46ec98", size = 70576, upload-time = "2025-10-07T21:16:36.495Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/db/b10e48aa8fff7407e67470363eac595018441cf32d5e1001567a7aeba5d2/websocket_client-1.9.0-py3-none-any.whl", hash = "sha256:af248a825037ef591efbf6ed20cc5faa03d3b47b9e5a2230a529eeee1c1fc3ef", size = 82616, upload-time = "2025-10-07T21:16:34.951Z" },
 ]
 
 [[package]]
