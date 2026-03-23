@@ -48,6 +48,9 @@ class VoiceProvider:
             elif provider == "google":
                 model = model or "standard"
                 tts = AIFactory.create_text_to_speech(provider, model)
+            elif provider == "camb":
+                model = model or "mars-pro"
+                tts = AIFactory.create_text_to_speech(provider, model)
             else:
                 return {}
             
@@ -82,6 +85,11 @@ class VoiceProvider:
                     "Wavenet B": "en-US-Wavenet-B",
                     "Wavenet C": "en-US-Wavenet-C",
                     "Wavenet D": "en-US-Wavenet-D"
+                }
+            elif provider == "camb":
+                return {
+                    f"{voice.name} (ID: {voice.id})": voice.id
+                    for voice in voices.values()
                 }
             else:
                 return {}
@@ -251,6 +259,10 @@ class VoiceProvider:
                 "Standard B": "en-US-Standard-B",
                 "Standard C": "en-US-Standard-C",
                 "Standard D": "en-US-Standard-D"
+            },
+            "camb": {
+                "Default Voice": "147320",
+                "Voice 2": "147325"
             }
         }
         

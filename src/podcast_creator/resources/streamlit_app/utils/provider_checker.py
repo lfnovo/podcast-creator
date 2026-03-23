@@ -53,6 +53,7 @@ class ProviderChecker:
         
         # TTS Providers
         provider_status["elevenlabs"] = os.environ.get("ELEVENLABS_API_KEY") is not None
+        provider_status["camb"] = os.environ.get("CAMB_API_KEY") is not None
         # Note: openai and google are already checked above for LLM, they also do TTS
         
         available_providers = [k for k, v in provider_status.items() if v]
@@ -89,7 +90,7 @@ class ProviderChecker:
         available_providers, _ = ProviderChecker.check_available_providers()
         
         # TTS providers
-        tts_providers = ["elevenlabs", "openai", "google"]
+        tts_providers = ["elevenlabs", "openai", "google", "camb"]
         
         return [p for p in tts_providers if p in available_providers]
     
@@ -153,6 +154,9 @@ class ProviderChecker:
             },
             "elevenlabs": {
                 "tts": "eleven_flash_v2_5"
+            },
+            "camb": {
+                "tts": "mars-pro"
             }
         }
         
@@ -305,7 +309,8 @@ class ProviderChecker:
                     "vertexai": "VERTEX_PROJECT, VERTEX_LOCATION, GOOGLE_APPLICATION_CREDENTIALS",
                     "azure": "AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT_NAME, AZURE_OPENAI_API_VERSION",
                     "openrouter": "OPENROUTER_API_KEY, OPENAI_API_KEY, OPENROUTER_BASE_URL",
-                    "ollama": "OLLAMA_API_BASE"
+                    "ollama": "OLLAMA_API_BASE",
+                    "camb": "CAMB_API_KEY"
                 }
                 
                 for provider in sorted(unavailable_providers):
