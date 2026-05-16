@@ -48,6 +48,21 @@ def parse_srt_intervals(srt_path: Path) -> list[tuple[float, float]]:
     return intervals
 
 
+def _is_monotonic_non_overlapping(intervals: list[tuple[float, float]]) -> bool:
+    if not intervals:
+        return True
+    prev_start, prev_end = intervals[0]
+    for start, end in intervals[1:]:
+        if start < prev_start:
+            return False
+        if start < prev_end:
+            return False
+        if end < start:
+            return False
+        prev_start, prev_end = start, end
+    return True
+
+
 def align_with_srt_or_fallback(
     slide_ids: list[str],
     fallback_cues: list[SlideCue],
@@ -69,6 +84,8 @@ def align_with_srt_or_fallback(
     if not intervals:
         return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
     if len(intervals) < len(slide_ids):
+        return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
+    if not _is_monotonic_non_overlapping(intervals):
         return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
 
     # Map intervals to slides by index; overflow intervals are ignored.
