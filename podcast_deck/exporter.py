@@ -175,6 +175,12 @@ DEFAULT_DEBUG_JS = """
 })();
 """.strip()
 
+DECK_DEBUG_MARKERS = (
+    "[deck debug] copied computed CSS",
+    "navigator.clipboard.writeText",
+    "URLSearchParams(window.location.search)",
+)
+
 
 @dataclass(slots=True)
 class DeckBuildOptions:

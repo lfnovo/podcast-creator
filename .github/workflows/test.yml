@@ -43,6 +43,36 @@ jobs:
     - name: Run tests
       run: uv run pytest -v
 
+    - name: P1 deck hardening checks
+      run: |
+        uv run pytest podcast_deck/tests/test_exporter.py -q
+        uv run python - <<'PY'
+from pathlib import Path
+from podcast_deck.exporter import DECK_DEBUG_MARKERS, DeckBuildOptions, export_deck
+import json
+import tempfile
+
+payload = {
+    "schemaVersion": "1.0",
+    "meta": {"title": "CI Deck", "lang": "zh-CN"},
+    "slides": [{"id": "s1", "content": ["a", "b"]}, {"id": "s2", "content": "c"}],
+}
+tmp = Path(tempfile.mkdtemp(prefix="deck-ci-"))
+src = tmp / "deck.json"
+dist = tmp / "deck.html"
+src.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+export_deck(src, dist, DeckBuildOptions(debug_script_enabled=False))
+text = dist.read_text(encoding="utf-8")
+assert dist.stat().st_size < 100 * 1024, "deck html should remain under 100KB"
+for marker in DECK_DEBUG_MARKERS:
+    assert marker not in text, f"release html leaked debug marker: {marker}"
+print("✅ deck release assertions passed")
+PY
+
+    - name: Dependency audit (pip-audit)
+      run: uv run pip-audit
+      continue-on-error: true
+
   build-wheel:
     runs-on: ubuntu-latest
 

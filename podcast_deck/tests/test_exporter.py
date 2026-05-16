@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from podcast_deck.exporter import DeckBuildOptions, export_deck
+from podcast_deck.exporter import DECK_DEBUG_MARKERS, DeckBuildOptions, export_deck
 from podcast_deck.schema import DeckSchemaError, parse_deck
 
 
@@ -50,4 +50,23 @@ def test_export_deck_generates_single_html(tmp_path) -> None:
     assert "<html lang=\"zh-CN\">" in content
     assert "deck-slide" in content
     assert "ArrowRight" in content
-    assert "deck-debug-highlight" in content
+    assert output_file.stat().st_size < 100 * 1024
+    for marker in DECK_DEBUG_MARKERS:
+        assert marker not in content
+
+
+def test_export_deck_with_debug_script_includes_markers(tmp_path) -> None:
+    input_file = tmp_path / "outline.json"
+    output_file = tmp_path / "deck.debug.html"
+    input_file.write_text(
+        json.dumps(_sample_payload(), ensure_ascii=False), encoding="utf-8"
+    )
+
+    export_deck(
+        input_path=input_file,
+        output_path=output_file,
+        options=DeckBuildOptions(debug_script_enabled=True),
+    )
+    content = output_file.read_text(encoding="utf-8")
+    for marker in DECK_DEBUG_MARKERS:
+        assert marker in content
