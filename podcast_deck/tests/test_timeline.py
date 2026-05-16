@@ -41,3 +41,7 @@ def test_allocate_cues_oversized_duration_hints_are_normalized() -> None:
     assert all(cue.end_sec >= cue.start_sec for cue in cues)
     assert all(0.0 <= cue.start_sec <= 12.0 for cue in cues)
     assert all(0.0 <= cue.end_sec <= 12.0 for cue in cues)
+    # Hinted slides should still dominate non-hinted duration after normalization.
+    assert cues[0].duration_sec > cues[2].duration_sec
+    assert cues[1].duration_sec > cues[2].duration_sec
+    assert abs(cues[0].duration_sec - cues[1].duration_sec) < 1e-6

@@ -70,7 +70,10 @@ def _as_optional_number(value: Any, *, field_name: str) -> float | None:
     if isinstance(value, bool):
         raise DeckSchemaError(f"`{field_name}` must be a number when provided")
     if isinstance(value, (int, float)):
-        parsed = float(value)
+        try:
+            parsed = float(value)
+        except OverflowError as exc:
+            raise DeckSchemaError(f"`{field_name}` must be a finite number") from exc
         if not math.isfinite(parsed):
             raise DeckSchemaError(f"`{field_name}` must be a finite number")
         if parsed < 0:
