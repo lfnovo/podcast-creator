@@ -61,3 +61,14 @@ def test_align_with_srt_or_fallback_uses_fallback_when_srt_partial(
     result = align_with_srt_or_fallback(["s1", "s2", "s3"], fallback, srt_path=srt)
     assert result.method == "fallback_timeline"
     assert result.cues == fallback
+
+
+def test_align_with_srt_or_fallback_uses_fallback_when_srt_unreadable(
+    tmp_path: Path,
+) -> None:
+    fallback = [SlideCue(slide_id="s1", start_sec=0.0, end_sec=1.0)]
+    srt = tmp_path / "broken.srt"
+    srt.write_bytes(b"\xff\xfe\x00\x00")
+    result = align_with_srt_or_fallback(["s1"], fallback, srt_path=srt)
+    assert result.method == "fallback_timeline"
+    assert result.cues == fallback

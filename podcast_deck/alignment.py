@@ -62,7 +62,10 @@ def align_with_srt_or_fallback(
     if srt_path is None or not srt_path.exists():
         return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
 
-    intervals = parse_srt_intervals(srt_path)
+    try:
+        intervals = parse_srt_intervals(srt_path)
+    except (OSError, UnicodeDecodeError, ValueError):
+        return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
     if not intervals:
         return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
     if len(intervals) < len(slide_ids):

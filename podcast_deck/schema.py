@@ -123,10 +123,15 @@ def parse_deck(data: dict[str, Any]) -> DeckDocument:
         raise DeckSchemaError("`slides` must be a non-empty array")
 
     slides: list[DeckSlide] = []
+    seen_slide_ids: set[str] = set()
     for index, raw_slide in enumerate(slides_raw):
         item = _as_dict(raw_slide, field_name=f"slides[{index}]")
+        slide_id = _as_non_empty_str(item.get("id"), field_name=f"slides[{index}].id")
+        if slide_id in seen_slide_ids:
+            raise DeckSchemaError(f"Duplicate slide id detected: `{slide_id}`")
+        seen_slide_ids.add(slide_id)
         slide = DeckSlide(
-            id=_as_non_empty_str(item.get("id"), field_name=f"slides[{index}].id"),
+            id=slide_id,
             layout=str(item.get("layout", "content") or "content"),
             content=item.get("content", ""),
             duration_hint_sec=_as_optional_number(

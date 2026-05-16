@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from podcast_deck.cli import _normalize_audio_src_for_html
 from podcast_deck.exporter import DECK_DEBUG_MARKERS, DeckBuildOptions, export_deck
 from podcast_deck.schema import DeckSchemaError, parse_deck
 from podcast_deck.timeline import SlideCue
@@ -135,3 +136,23 @@ def test_parse_deck_rejects_bool_transition_budget() -> None:
     payload["slides"][0]["transitionBudgetMs"] = False
     with pytest.raises(DeckSchemaError):
         parse_deck(payload)
+
+
+def test_parse_deck_rejects_duplicate_slide_ids() -> None:
+    payload = _sample_payload()
+    payload["slides"][1]["id"] = payload["slides"][0]["id"]
+    with pytest.raises(DeckSchemaError):
+        parse_deck(payload)
+
+
+def test_normalize_audio_src_for_html_encodes_reserved_chars(tmp_path) -> None:
+    html_parent = tmp_path / "html"
+    audio_parent = tmp_path / "audio"
+    html_parent.mkdir(parents=True, exist_ok=True)
+    audio_parent.mkdir(parents=True, exist_ok=True)
+    audio_path = audio_parent / "narration #1?.mp3"
+    audio_path.write_bytes(b"demo")
+    src = _normalize_audio_src_for_html(audio_path, html_parent)
+    assert "%23" in src
+    assert "%3F" in src
+    assert " " not in src

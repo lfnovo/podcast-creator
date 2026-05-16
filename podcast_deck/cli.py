@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import os
+from urllib.parse import quote
 
 import click
 
@@ -22,7 +23,8 @@ def _normalize_audio_src_for_html(audio_path: Path, html_parent: Path) -> str:
     """
     try:
         rel = os.path.relpath(audio_path.resolve(), html_parent.resolve())
-        return rel.replace("\\", "/")
+        rel_url = rel.replace("\\", "/")
+        return quote(rel_url, safe="/._-~")
     except ValueError:
         return audio_path.resolve().as_uri()
 
