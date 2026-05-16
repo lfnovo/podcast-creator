@@ -96,7 +96,7 @@ DEFAULT_PRINT_CSS = """
     background: transparent;
   }
   .deck-slide {
-    display: block !important;
+    display: flex !important;
     position: relative;
     page-break-after: always;
     min-height: 100vh;

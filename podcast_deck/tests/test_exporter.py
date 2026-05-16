@@ -52,6 +52,7 @@ def test_export_deck_generates_single_html(tmp_path) -> None:
     assert "<html lang=\"zh-CN\">" in content
     assert "deck-slide" in content
     assert "ArrowRight" in content
+    assert "display: flex !important;" in content
     assert output_file.stat().st_size < 100 * 1024
     for marker in DECK_DEBUG_MARKERS:
         assert marker not in content
