@@ -99,6 +99,16 @@ def _as_optional_int(value: Any, *, field_name: str, default: int = 0) -> int:
     raise DeckSchemaError(f"`{field_name}` must be an integer when provided")
 
 
+def _as_slide_content(value: Any, *, field_name: str) -> str | list[str]:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        if any(not isinstance(item, str) for item in value):
+            raise DeckSchemaError(f"`{field_name}` array items must be strings")
+        return value
+    raise DeckSchemaError(f"`{field_name}` must be a string or string array")
+
+
 def parse_deck(data: dict[str, Any]) -> DeckDocument:
     """Parse and validate Deck JSON into typed structure."""
     payload = _as_dict(data, field_name="root")
@@ -133,7 +143,9 @@ def parse_deck(data: dict[str, Any]) -> DeckDocument:
         slide = DeckSlide(
             id=slide_id,
             layout=str(item.get("layout", "content") or "content"),
-            content=item.get("content", ""),
+            content=_as_slide_content(
+                item.get("content", ""), field_name=f"slides[{index}].content"
+            ),
             duration_hint_sec=_as_optional_number(
                 item.get("durationHintSec"), field_name=f"slides[{index}].durationHintSec"
             ),

@@ -40,6 +40,7 @@ dev = [
     "langchain-ollama>=1.0.1",
     "mcp>=1.2.0",
     "mypy>=1.16.1",
+    "pip-audit>=2.9.0",
     "pytest>=8.4.1",
     "langchain-openai>=1.1.7",
     "ruff>=0.14.14",

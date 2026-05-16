@@ -157,3 +157,11 @@ def test_normalize_audio_src_for_html_encodes_reserved_chars(tmp_path) -> None:
     assert "%23" in src
     assert "%3F" in src
     assert " " not in src
+
+
+@pytest.mark.parametrize("bad_content", [123, {"x": "y"}, [1, "ok"]])
+def test_parse_deck_rejects_invalid_content_type(bad_content) -> None:
+    payload = _sample_payload()
+    payload["slides"][0]["content"] = bad_content
+    with pytest.raises(DeckSchemaError):
+        parse_deck(payload)
