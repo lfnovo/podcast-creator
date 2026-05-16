@@ -8,27 +8,98 @@ and generating podcasts using the podcast-creator library.
 import nest_asyncio
 nest_asyncio.apply()
 
+import os
 import streamlit as st  # noqa: E402
 import sys  # noqa: E402
 import json  # noqa: E402
+from copy import deepcopy  # noqa: E402
 from pathlib import Path  # noqa: E402
+from dotenv import load_dotenv  # noqa: E402
 
-# Add the parent directory to the path to import podcast_creator
-sys.path.append(str(Path(__file__).parent.parent))
+# ``streamlit run`` 会把本文件所在目录加入 path，因而能 ``import utils``。
+# ``podcast_creator`` 包在再往上两级目录的父级（仓库的 ``src/``）；仅追加 ``resources`` 无法 import。
+_app_file = Path(__file__).resolve()
+_podcast_pkg_parent = _app_file.parents[3]  # .../src 当路径为 src/podcast_creator/resources/streamlit_app/app.py
+if str(_podcast_pkg_parent) not in sys.path:
+    sys.path.insert(0, str(_podcast_pkg_parent))
 
 # Import utilities
 from utils import EpisodeManager, ProfileManager, ContentExtractor, run_async_in_streamlit, ErrorHandler, VoiceProvider, ProviderChecker  # noqa: E402
 
-# Use current working directory for all profile management
-WORKING_DIR = Path.cwd()
+_STUDIO_BGM_OPTIONS = ("关闭", "片头 BGM（新闻播报风）", "全程 BGM")
+_STUDIO_BGM_MODE_BY_LABEL = {
+    "关闭": None,
+    "片头 BGM（新闻播报风）": "intro",
+    "全程 BGM": "full",
+}
+
+
+def _resolve_profile_working_dir() -> Path:
+    """
+    使用同时包含 speakers_config.json 与 episodes_config.json 的目录作为配置根目录。
+
+    从当前工作目录向上查找最多 3 层，避免在子目录启动 Streamlit 时只读到不完整/占位配置。
+    """
+    start = Path.cwd()
+    if (
+        (start / "speakers_config.json").is_file()
+        and (start / "episodes_config.json").is_file()
+    ):
+        return start.resolve()
+    for ancestor in (start.parent, start.parent.parent, start.parent.parent.parent):
+        if (
+            (ancestor / "speakers_config.json").is_file()
+            and (ancestor / "episodes_config.json").is_file()
+        ):
+            return ancestor.resolve()
+    return start.resolve()
+
+
+def _recover_from_legacy_clone_from_session_if_needed() -> None:
+    """
+    浏览器若仍保留已废弃的 ``clone_from_*`` Streamlit widget 键，单键 ``del`` 往往无法解除
+    绑定，仍会报 ``cannot be modified after the widget is instantiated``。
+    检测到这些键时：清空 session（仅保留导航相关字段）并立即 rerun 一次。
+    """
+    try:
+        keys = list(st.session_state.keys())
+    except Exception:
+        return
+    if not any(isinstance(k, str) and k.startswith("clone_from_") for k in keys):
+        return
+
+    page = st.session_state.get("current_page", "home")
+    nav_lib = st.session_state.get("navigate_to_library", False)
+    st.session_state.clear()
+    st.session_state["current_page"] = page
+    if nav_lib:
+        st.session_state["navigate_to_library"] = nav_lib
+    st.rerun()
+
+
+# 配置文件、输出目录以此为准（可与终端 cwd 不同）
+WORKING_DIR = _resolve_profile_working_dir()
+
+# Auto-load environment variables from project .env so provider detection works in UI.
+load_dotenv(WORKING_DIR / ".env", override=False)
+load_dotenv(Path.cwd() / ".env", override=False)
+
+# Normalize Ollama base URL for Esperanto/langchain-ollama compatibility.
+# If users set /v1 for OpenAI-style endpoints, strip it for Ollama native client.
+ollama_api_base = os.environ.get("OLLAMA_API_BASE", "").strip()
+if ollama_api_base.endswith("/v1"):
+    os.environ["OLLAMA_API_BASE"] = ollama_api_base[:-3].rstrip("/")
 
 # Configure page
 st.set_page_config(
-    page_title="Podcast Creator Studio",
+    page_title="播客创作工作台",
     page_icon="🎙️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# 必须在任何其它 streamlit 元素之前处理遗留的 clone_from_* widget 会话（见函数说明）
+_recover_from_legacy_clone_from_session_if_needed()
 
 # Custom CSS for better styling
 st.markdown("""
@@ -84,80 +155,229 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+def _apply_speaker_json_rules(json_text: str, focus_points: str = ""):
+    """Apply common normalization rules for speaker profile JSON."""
+    data = json.loads(json_text)
+    profiles = data.get("profiles")
+    if not isinstance(profiles, dict):
+        raise ValueError("JSON 格式不正确：必须包含对象类型的 `profiles` 字段。")
+
+    applied = []
+    focus_lower = focus_points.lower()
+
+    # Rule 1: unify provider from focus text keywords.
+    target_provider = None
+    for provider in [
+        "piper",
+        "gpt_sovits",
+        "voicebox",
+        "coqui",
+        "edge_tts",
+        "openai",
+        "elevenlabs",
+        "google",
+    ]:
+        if provider in focus_lower:
+            target_provider = provider
+            break
+    if target_provider:
+        for profile in profiles.values():
+            if isinstance(profile, dict):
+                profile["tts_provider"] = target_provider
+        applied.append(f"统一 tts_provider 为 `{target_provider}`")
+
+    # Rule 2: fill missing speaker fields.
+    for profile in profiles.values():
+        if not isinstance(profile, dict):
+            continue
+        speakers = profile.get("speakers", [])
+        if isinstance(speakers, list):
+            for idx, speaker in enumerate(speakers):
+                if not isinstance(speaker, dict):
+                    continue
+                speaker.setdefault("name", f"Speaker {idx + 1}")
+                speaker.setdefault("voice_id", "")
+                speaker.setdefault("backstory", "")
+                speaker.setdefault("personality", "")
+    applied.append("补全 speaker 缺失字段（name/voice_id/backstory/personality）")
+
+    return json.dumps(data, ensure_ascii=False, indent=2), applied
+
+
+def _apply_episode_json_rules(json_text: str):
+    """Apply common normalization rules for episode profile JSON."""
+    data = json.loads(json_text)
+    profiles = data.get("profiles")
+    if not isinstance(profiles, dict):
+        raise ValueError("JSON 格式不正确：必须包含对象类型的 `profiles` 字段。")
+
+    applied = []
+    for profile in profiles.values():
+        if not isinstance(profile, dict):
+            continue
+        profile.setdefault("speaker_config", "")
+        profile.setdefault("outline_provider", "ollama")
+        profile.setdefault("transcript_provider", "ollama")
+        profile.setdefault("outline_model", "qwen3:8b")
+        profile.setdefault("transcript_model", "qwen3:8b")
+        profile.setdefault("default_briefing", "")
+        try:
+            n = int(profile.get("num_segments", 3))
+        except (TypeError, ValueError):
+            n = 3
+        profile["num_segments"] = max(1, min(10, n))
+    applied.append("补全常用字段并规范 num_segments 到 1-10")
+
+    return json.dumps(data, ensure_ascii=False, indent=2), applied
+
+
+def _set_current_page(page: str):
+    """Set route state."""
+    st.session_state.current_page = page
+
+
+def _render_deck_export_panel() -> None:
+    """Render MVP Deck export panel in Streamlit."""
+    st.subheader("🖼️ Export Deck（MVP）")
+    st.caption("上传符合 Schema v1.0 的 JSON，一键导出单文件 HTML 幻灯。")
+
+    try:
+        from podcast_deck.exporter import DeckBuildOptions, export_deck
+    except Exception as exc:  # pragma: no cover - UI defensive fallback
+        st.warning(f"Deck 导出模块不可用：{exc}")
+        return
+
+    uploaded = st.file_uploader(
+        "上传 deck/outline JSON",
+        type=["json"],
+        key="deck_export_file",
+        help="需包含 schemaVersion/meta/slides。",
+    )
+    col1, col2 = st.columns(2)
+    with col1:
+        debug_script = st.checkbox(
+            "包含调试脚本（仅本地调试）", value=False, key="deck_export_debug"
+        )
+    with col2:
+        aspect_ratio = st.selectbox(
+            "画面比例",
+            options=["16:9", "4:3"],
+            index=0,
+            key="deck_export_ratio",
+        )
+
+    if uploaded is None:
+        return
+
+    if st.button("⚡ 生成 Deck HTML", type="primary", key="deck_export_run"):
+        try:
+            payload = json.loads(uploaded.getvalue().decode("utf-8"))
+            deck_dir = WORKING_DIR / "output" / "decks"
+            deck_dir.mkdir(parents=True, exist_ok=True)
+            stem = Path(uploaded.name).stem or "deck"
+            input_path = deck_dir / f"{stem}.json"
+            output_path = deck_dir / f"{stem}.html"
+            input_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            export_deck(
+                input_path=input_path,
+                output_path=output_path,
+                options=DeckBuildOptions(
+                    debug_script_enabled=debug_script, aspect_ratio=aspect_ratio
+                ),
+            )
+            html_content = output_path.read_text(encoding="utf-8")
+            st.success(f"✅ 导出成功：{output_path}")
+            st.download_button(
+                label="⬇️ 下载 deck.html",
+                data=html_content,
+                file_name=output_path.name,
+                mime="text/html",
+                key="deck_export_download",
+                use_container_width=True,
+            )
+        except Exception as exc:
+            st.error(f"❌ Deck 导出失败：{exc}")
+
+
 def main():
     """Main application entry point."""
     
     # Header
     st.markdown('<div class="main-header">🎙️ Podcast Creator Studio</div>', unsafe_allow_html=True)
     
+    page_labels = {
+        "home": "🏠 首页",
+        "speaker_profiles": "🎙️ 说话人配置",
+        "episode_profiles": "📺 剧集配置",
+        "generate_podcast": "🎬 生成播客",
+        "episode_library": "📚 剧集库",
+    }
+
     # Initialize current page in session state
     if 'current_page' not in st.session_state:
-        st.session_state.current_page = "🏠 Home"
+        st.session_state.current_page = "home"
     
     # Handle programmatic navigation
     if st.session_state.get('navigate_to_library', False):
-        st.session_state.current_page = "📚 Episode Library"
+        _set_current_page("episode_library")
         st.session_state.navigate_to_library = False
     
     # Sidebar navigation
     with st.sidebar:
-        st.title("Navigation")
+        st.title("导航")
         st.markdown("---")
         
         # Navigation menu
-        pages = [
-            "🏠 Home",
-            "🎙️ Speaker Profiles", 
-            "📺 Episode Profiles",
-            "🎬 Generate Podcast",
-            "📚 Episode Library"
-        ]
+        pages = list(page_labels.keys())
         
         # Find current page index
         current_index = pages.index(st.session_state.current_page) if st.session_state.current_page in pages else 0
         
         page = st.selectbox(
-            "Choose a page:",
+            "选择页面：",
             pages,
             index=current_index,
-            key="navigation_selectbox"
+            format_func=lambda x: page_labels[x]
         )
         
         # Update current page if changed
         if page != st.session_state.current_page:
-            st.session_state.current_page = page
+            _set_current_page(page)
             st.rerun()
         
         st.markdown("---")
-        st.markdown("### Quick Actions")
+        st.markdown("### 快捷操作")
         
-        if st.button("🎬 Generate Podcast", use_container_width=True):
-            st.session_state.current_page = "🎬 Generate Podcast"
+        if st.button("🎬 生成播客", use_container_width=True, key="sidebar_generate_podcast"):
+            _set_current_page("generate_podcast")
             st.rerun()
             
-        if st.button("📚 View Episodes", use_container_width=True):
-            st.session_state.current_page = "📚 Episode Library"
+        if st.button("📚 查看剧集", use_container_width=True, key="sidebar_view_episodes"):
+            _set_current_page("episode_library")
             st.rerun()
     
     # Use the current page from session state
     page = st.session_state.current_page
     
     # Route to appropriate page
-    if page == "🏠 Home":
+    if page == "home":
         show_home_page()
-    elif page == "🎙️ Speaker Profiles":
+    elif page == "speaker_profiles":
         show_speaker_profiles_page()
-    elif page == "📺 Episode Profiles":
+    elif page == "episode_profiles":
         show_episode_profiles_page()
-    elif page == "🎬 Generate Podcast":
+    elif page == "generate_podcast":
         show_generate_podcast_page()
-    elif page == "📚 Episode Library":
+    elif page == "episode_library":
         show_episode_library_page()
 
 def show_home_page():
     """Display the home page with dashboard and quick stats."""
-    st.subheader("Welcome to Podcast Creator Studio")
-    st.markdown("Your all-in-one solution for AI-powered podcast creation")
+    st.subheader("欢迎使用播客创作工作台")
+    st.markdown("你的 AI 播客一站式工作台")
     
     # Initialize managers
     episode_manager = EpisodeManager(base_output_dir=WORKING_DIR / "output")
@@ -175,7 +395,7 @@ def show_home_page():
             st.markdown(f"""
             <div class="stat-card">
                 <p class="stat-number">{episodes_stats['total_episodes']}</p>
-                <p class="stat-label">Total Episodes</p>
+                <p class="stat-label">剧集总数</p>
             </div>
             """, unsafe_allow_html=True)
         
@@ -183,7 +403,7 @@ def show_home_page():
             st.markdown(f"""
             <div class="stat-card">
                 <p class="stat-number">{profiles_stats['speaker_profiles_count']}</p>
-                <p class="stat-label">Speaker Profiles</p>
+                <p class="stat-label">说话人配置</p>
             </div>
             """, unsafe_allow_html=True)
         
@@ -191,14 +411,14 @@ def show_home_page():
             st.markdown(f"""
             <div class="stat-card">
                 <p class="stat-number">{profiles_stats['episode_profiles_count']}</p>
-                <p class="stat-label">Episode Profiles</p>
+                <p class="stat-label">剧集配置</p>
             </div>
             """, unsafe_allow_html=True)
         
         st.markdown("---")
         
         # Recent episodes
-        st.subheader("Recent Episodes")
+        st.subheader("最近剧集")
         
         recent_episodes = episode_manager.scan_episodes_directory()
         if recent_episodes:
@@ -208,25 +428,25 @@ def show_home_page():
                 with col1:
                     st.markdown(f"**{episode.name}**")
                     if episode.created_date:
-                        st.markdown(f"*Created: {episode.created_date.strftime('%Y-%m-%d %H:%M')}*")
+                        st.markdown(f"*创建时间：{episode.created_date.strftime('%Y-%m-%d %H:%M')}*")
                     if episode.duration:
-                        st.markdown(f"*Duration: {episode_manager.format_duration(episode.duration)}*")
+                        st.markdown(f"*时长：{episode_manager.format_duration(episode.duration)}*")
                 
                 with col2:
-                    if episode.audio_file and st.button("▶️ Play", key=f"play_{episode.name}"):
+                    if episode.audio_file and st.button("▶️ 播放", key=f"play_{episode.name}"):
                         st.session_state.selected_episode = episode
-                        st.session_state.current_page = "📚 Episode Library"
+                        _set_current_page("episode_library")
                         st.rerun()
                 
                 with col3:
-                    if st.button("📄 Details", key=f"details_{episode.name}"):
+                    if st.button("📄 详情", key=f"details_{episode.name}"):
                         st.session_state.selected_episode = episode
-                        st.session_state.current_page = "📚 Episode Library"
+                        _set_current_page("episode_library")
                         st.rerun()
                 
                 st.markdown("---")
         else:
-            st.info("📝 No episodes found. Start by generating your first podcast!")
+            st.info("📝 暂无剧集，先生成你的第一期播客吧！")
         
         st.markdown("---")
         
@@ -237,28 +457,31 @@ def show_home_page():
         st.markdown("---")
         
         # Quick actions
-        st.subheader("Quick Actions")
+        st.subheader("快捷操作")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("🎬 Create New Podcast", use_container_width=True, type="primary"):
-                st.session_state.current_page = "🎬 Generate Podcast"
+            if st.button("🎬 新建播客", use_container_width=True, type="primary"):
+                _set_current_page("generate_podcast")
                 st.rerun()
         
         with col2:
-            if st.button("📁 Import Profiles", use_container_width=True):
-                st.session_state.current_page = "🎙️ Speaker Profiles"
+            if st.button("📁 导入配置", use_container_width=True):
+                _set_current_page("speaker_profiles")
                 st.rerun()
+
+        st.markdown("---")
+        _render_deck_export_panel()
     
     except Exception as e:
-        st.error(f"Error loading home page data: {str(e)}")
-        st.markdown("Please check that all required files are in place and try again.")
+        st.error(f"首页数据加载失败：{str(e)}")
+        st.markdown("请确认必需文件已就绪后重试。")
 
 def show_speaker_profiles_page():
     """Display the speaker profiles management page."""
-    st.subheader("🎙️ Speaker Profiles")
-    st.markdown("Manage your speaker configurations")
+    st.subheader("🎙️ 说话人配置")
+    st.markdown("管理你的说话人配置")
     
     # Initialize profile manager
     profile_manager = ProfileManager(working_dir=WORKING_DIR)
@@ -272,20 +495,20 @@ def show_speaker_profiles_page():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("➕ New Profile", use_container_width=True):
+            if st.button("➕ 新建配置", use_container_width=True):
                 st.session_state.show_new_speaker_form = True
                 st.rerun()
         
         with col2:
-            if st.button("📁 Import", use_container_width=True):
+            if st.button("📁 导入", use_container_width=True):
                 st.session_state.show_import_speaker_form = True
                 st.rerun()
         
         with col3:
-            if st.button("💾 Export All", use_container_width=True):
+            if st.button("💾 导出全部", use_container_width=True):
                 export_data = profile_manager.export_speaker_profiles()
                 st.download_button(
-                    label="Download speakers_config.json",
+                    label="下载 speakers_config.json",
                     data=json.dumps(export_data, indent=2),
                     file_name="speakers_config.json",
                     mime="application/json"
@@ -295,29 +518,74 @@ def show_speaker_profiles_page():
         
         # Import form
         if st.session_state.get("show_import_speaker_form", False):
-            st.subheader("📁 Import Speaker Profiles")
+            st.subheader("📁 导入说话人配置")
+            speaker_import_key_prefix = "speaker_import"
             
             uploaded_file = st.file_uploader(
-                "Choose a JSON file to import",
-                type=['json'],
-                key="speaker_import_file"
+                "选择要导入的文件（支持 .json / .docx）",
+                type=['json', 'docx'],
+                key=f"{speaker_import_key_prefix}_file"
             )
             
             if uploaded_file is not None:
                 try:
-                    file_content = uploaded_file.read().decode('utf-8')
-                    imported_names = profile_manager.import_speaker_profiles(file_content)
-                    
-                    if imported_names:
-                        st.success(f"✅ Successfully imported {len(imported_names)} profiles: {', '.join(imported_names)}")
-                        st.session_state.show_import_speaker_form = False
+                    parsed_json_text = profile_manager.parse_import_file(
+                        uploaded_file.name, uploaded_file.read(), profile_kind="speaker"
+                    )
+                    st.markdown("### 预处理与确认")
+                    st.info("已预处理为 JSON。请先补充关注点并按需编辑，再确认生成 JSON。")
+
+                    speaker_focus_points = st.text_area(
+                        "请补充本次关注点（可选）",
+                        key=f"{speaker_import_key_prefix}_focus_points",
+                        placeholder="例如：统一 tts_provider 为 piper；检查每个 speaker 的 voice_id 是否为空；保持 profile 命名规范。",
+                        help="用于人工检查导入内容，当前不会自动改写 JSON。"
+                    )
+                    if speaker_focus_points.strip():
+                        st.caption(f"已记录关注点：{speaker_focus_points.strip()}")
+
+                    edited_json = st.text_area(
+                        "编辑预处理后的 JSON",
+                        value=parsed_json_text,
+                        height=320,
+                        key=f"{speaker_import_key_prefix}_edited_json"
+                    )
+
+                    if st.button("✨ 根据关注点自动应用规则", key=f"{speaker_import_key_prefix}_apply_rules_btn"):
+                        updated_json, applied_rules = _apply_speaker_json_rules(
+                            edited_json, speaker_focus_points
+                        )
+                        st.session_state[f"{speaker_import_key_prefix}_edited_json"] = updated_json
+                        st.success("已应用规则：" + "；".join(applied_rules))
                         st.rerun()
-                    else:
-                        st.warning("⚠️ No new profiles imported. Check if profiles already exist or file format is correct.")
+
+                    generated_speaker_json = None
+                    if st.button("🧪 确认并生成 JSON", key=f"{speaker_import_key_prefix}_generate_json_btn"):
+                        candidate = json.loads(edited_json)
+                        if "profiles" not in candidate or not isinstance(candidate["profiles"], dict):
+                            st.error("❌ JSON 格式不正确：必须包含对象类型的 `profiles` 字段。")
+                        else:
+                            generated_speaker_json = json.dumps(candidate, ensure_ascii=False, indent=2)
+                            st.success("✅ JSON 校验通过，已生成可下载文件。")
+                            st.download_button(
+                                label="⬇️ 下载生成后的 speakers_config.import.json",
+                                data=generated_speaker_json,
+                                file_name="speakers_config.import.json",
+                                mime="application/json",
+                                key=f"{speaker_import_key_prefix}_download_generated_json"
+                            )
+                            if st.button("🚀 导入该 JSON", key=f"{speaker_import_key_prefix}_import_generated_json"):
+                                imported_names = profile_manager.import_speaker_profiles(generated_speaker_json)
+                                if imported_names:
+                                    st.success(f"✅ 成功导入 {len(imported_names)} 个配置：{', '.join(imported_names)}")
+                                    st.session_state.show_import_speaker_form = False
+                                    st.rerun()
+                                else:
+                                    st.warning("⚠️ 没有导入新配置，请检查是否重名或文件格式是否正确。")
                 except Exception as e:
-                    st.error(f"❌ Error importing profiles: {str(e)}")
+                    st.error(f"❌ 导入配置失败：{str(e)}")
             
-            if st.button("❌ Cancel Import"):
+            if st.button("❌ 取消导入", key=f"{speaker_import_key_prefix}_cancel_import"):
                 st.session_state.show_import_speaker_form = False
                 st.rerun()
             
@@ -325,36 +593,69 @@ def show_speaker_profiles_page():
         
         # New profile form
         if st.session_state.get("show_new_speaker_form", False):
-            st.subheader("➕ Create New Speaker Profile")
+            st.subheader("➕ 新建说话人配置")
             
-            profile_name = st.text_input("Profile Name:", placeholder="e.g., my_podcasters", key="new_profile_name")
+            profile_name = st.text_input("配置名称：", placeholder="例如：my_podcasters", key="new_profile_name")
             
             col1, col2 = st.columns(2)
             with col1:
                 tts_provider = ProviderChecker.render_tts_provider_selector(
-                    "TTS Provider:",
+                    "TTS 提供商：",
                     current_provider="elevenlabs",
                     key="new_tts_provider",
-                    help_text="Choose a Text-to-Speech provider"
+                    help_text="选择一个文本转语音（TTS）提供商"
                 )
             with col2:
                 # Get default model for selected provider
                 defaults = ProviderChecker.get_default_models(tts_provider)
                 default_model = defaults.get("tts", "eleven_flash_v2_5")
-                tts_model = st.text_input("TTS Model:", value=default_model, key="new_tts_model")
+                tts_model = st.text_input("TTS 模型：", value=default_model, key="new_tts_model")
             
-            st.markdown("### Speakers")
+            new_edge_tts_config = None
+            if tts_provider == "edge_tts":
+                st.markdown("### Edge TTS 全局韵律")
+                st.caption(
+                    "与 `speakers_config` 中一致：**语速 / 音高 / 音量** 对同一条配置里的所有角色生效。"
+                    " 下方为系统推荐预设，可一键应用后再微调。"
+                )
+                new_edge_tts_config = VoiceProvider.render_edge_tts_prosody_ui("new_speaker_prof", None)
+
+            new_gpt_tts_config = None
+            if tts_provider == "gpt_sovits":
+                new_gpt_tts_config = VoiceProvider.render_gpt_sovits_config_ui(
+                    "new_speaker_prof", None
+                )
+
+            new_voicebox_tts_config = None
+            if tts_provider == "voicebox":
+                new_voicebox_tts_config = VoiceProvider.render_voicebox_config_ui(
+                    "new_speaker_prof", None
+                )
+            
+            st.markdown("### 说话人")
+            st.caption(
+                "多人播客：1–4 位说话人；**姓名**、**voice_id** 各自不能重复，且对白里的 `speaker` "
+                "必须与姓名完全一致。中文双人：`zh_duo_local` / `zh_duo_talk_edge`，新闻感双人：`zh_duo_news_local` / `zh_duo_news_edge`。"
+            )
             
             # Initialize speakers in session state
             if 'new_speakers' not in st.session_state:
                 st.session_state.new_speakers = [{'name': '', 'voice_id': '', 'backstory': '', 'personality': ''}]
             
             for i, speaker in enumerate(st.session_state.new_speakers):
-                st.markdown(f"**Speaker {i+1}:**")
+                st.markdown(f"**说话人 {i+1}：**")
                 col1, col2 = st.columns([4, 1])
                 
                 with col1:
-                    speaker_name = st.text_input("Name:", key=f"new_speaker_name_{i}", value=speaker.get('name', ''))
+                    speaker_name = st.text_input("姓名：", key=f"new_speaker_name_{i}", value=speaker.get('name', ''))
+                    
+                    if tts_provider == "gpt_sovits":
+                        VoiceProvider.render_gpt_sovits_speaker_file_upload(
+                            working_dir=WORKING_DIR,
+                            key_prefix="new_speaker_prof",
+                            speaker_index=i,
+                            voice_id_state_key=f"new_voice_id_{i}",
+                        )
                     
                     # Voice selection with provider-specific voices
                     voice_id = VoiceProvider.render_voice_selector(
@@ -362,16 +663,18 @@ def show_speaker_profiles_page():
                         model=tts_model,
                         current_voice_id=speaker.get('voice_id', ''),
                         key=f"new_voice_id_{i}",
-                        help_text=f"Choose a voice from {tts_provider}"
+                        help_text=f"从 {tts_provider} 中选择音色"
                     )
                     
-                    # Show voice preview if available
-                    if voice_id and tts_provider == "elevenlabs":
-                        with st.expander("🎵 Voice Preview"):
-                            VoiceProvider.render_voice_preview(tts_provider, voice_id)
+                    VoiceProvider.render_speaker_voice_audition(
+                        tts_provider,
+                        voice_id,
+                        edge_prosody=new_edge_tts_config,
+                        key_prefix=f"new_spk_{i}",
+                    )
                     
-                    backstory = st.text_area("Backstory:", key=f"new_backstory_{i}", value=speaker.get('backstory', ''))
-                    personality = st.text_area("Personality:", key=f"new_personality_{i}", value=speaker.get('personality', ''))
+                    backstory = st.text_area("背景设定：", key=f"new_backstory_{i}", value=speaker.get('backstory', ''))
+                    personality = st.text_area("性格特点：", key=f"new_personality_{i}", value=speaker.get('personality', ''))
                     
                     # Update speaker data
                     st.session_state.new_speakers[i] = {
@@ -391,7 +694,7 @@ def show_speaker_profiles_page():
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("➕ Add Speaker", key="new_add_speaker") and len(st.session_state.new_speakers) < 4:
+                if st.button("➕ 添加说话人", key="new_add_speaker") and len(st.session_state.new_speakers) < 4:
                     st.session_state.new_speakers.append({'name': '', 'voice_id': '', 'backstory': '', 'personality': ''})
                     st.rerun()
             
@@ -401,11 +704,11 @@ def show_speaker_profiles_page():
             col1, col2 = st.columns(2)
             
             with col1:
-                if st.button("✅ Create Profile", type="primary", key="create_speaker_profile"):
+                if st.button("✅ 创建配置", type="primary", key="create_speaker_profile"):
                     if not profile_name:
-                        st.error("Profile name is required")
+                        st.error("请填写配置名称")
                     elif profile_name in profile_names:
-                        st.error(f"Profile '{profile_name}' already exists")
+                        st.error(f"配置 '{profile_name}' 已存在")
                     else:
                         # Create profile data
                         profile_data = {
@@ -413,26 +716,32 @@ def show_speaker_profiles_page():
                             "tts_model": tts_model,
                             "speakers": st.session_state.new_speakers
                         }
+                        if tts_provider == "edge_tts" and new_edge_tts_config:
+                            profile_data["tts_config"] = dict(new_edge_tts_config)
+                        elif tts_provider == "gpt_sovits" and new_gpt_tts_config is not None:
+                            profile_data["tts_config"] = dict(new_gpt_tts_config)
+                        elif tts_provider == "voicebox" and new_voicebox_tts_config is not None:
+                            profile_data["tts_config"] = dict(new_voicebox_tts_config)
                         
                         # Validate profile
                         validation_errors = profile_manager.validate_speaker_profile(profile_data)
                         if validation_errors:
-                            st.error("❌ Validation errors:")
+                            st.error("❌ 校验失败：")
                             for error in validation_errors:
                                 st.error(f"• {error}")
                         else:
                             # Create the profile
                             if profile_manager.create_speaker_profile(profile_name, profile_data):
-                                st.success(f"✅ Profile '{profile_name}' created successfully!")
+                                st.success(f"✅ 配置 '{profile_name}' 创建成功！")
                                 st.session_state.show_new_speaker_form = False
                                 if 'new_speakers' in st.session_state:
                                     del st.session_state.new_speakers
                                 st.rerun()
                             else:
-                                st.error("❌ Failed to create profile")
+                                st.error("❌ 创建配置失败")
             
             with col2:
-                if st.button("❌ Cancel", key="cancel_new_speaker"):
+                if st.button("❌ 取消", key="cancel_new_speaker"):
                     st.session_state.show_new_speaker_form = False
                     if 'new_speakers' in st.session_state:
                         del st.session_state.new_speakers
@@ -446,16 +755,16 @@ def show_speaker_profiles_page():
             edit_profile_data = profile_manager.get_speaker_profile(edit_profile_name)
             
             if edit_profile_data:
-                st.subheader(f"✏️ Edit Speaker Profile: {edit_profile_name}")
+                st.subheader(f"✏️ 编辑说话人配置：{edit_profile_name}")
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     current_tts_provider = edit_profile_data.get('tts_provider', 'elevenlabs')
                     tts_provider = ProviderChecker.render_tts_provider_selector(
-                        "TTS Provider:",
+                        "TTS 提供商：",
                         current_provider=current_tts_provider,
                         key="edit_speaker_tts_provider",
-                        help_text="Choose a Text-to-Speech provider"
+                        help_text="选择一个文本转语音（TTS）提供商"
                     )
                 with col2:
                     # Get default model for selected provider
@@ -464,27 +773,60 @@ def show_speaker_profiles_page():
                     
                     current_tts_model = edit_profile_data.get('tts_model', default_model)
                     tts_model = st.text_input(
-                        "TTS Model:", 
+                        "TTS 模型：", 
                         value=current_tts_model,
                         key="edit_speaker_tts_model"
                     )
                 
-                st.markdown("### Speakers")
+                edit_edge_tts_config = None
+                if tts_provider == "edge_tts":
+                    st.markdown("### Edge TTS 全局韵律")
+                    st.caption(
+                        "调节后保存将写入当前配置的 `tts_config`。可选用系统推荐预设后再微调。"
+                    )
+                    edit_edge_tts_config = VoiceProvider.render_edge_tts_prosody_ui(
+                        f"edit_speaker_{edit_profile_name}",
+                        edit_profile_data.get("tts_config"),
+                    )
+
+                edit_gpt_tts_config = None
+                if tts_provider == "gpt_sovits":
+                    edit_gpt_tts_config = VoiceProvider.render_gpt_sovits_config_ui(
+                        f"edit_gpt_{edit_profile_name}",
+                        edit_profile_data.get("tts_config"),
+                    )
+
+                edit_voicebox_tts_config = None
+                if tts_provider == "voicebox":
+                    edit_voicebox_tts_config = VoiceProvider.render_voicebox_config_ui(
+                        f"edit_vb_{edit_profile_name}",
+                        edit_profile_data.get("tts_config"),
+                    )
+                
+                st.markdown("### 说话人")
                 
                 # Initialize edit speakers
                 if 'edit_speakers' not in st.session_state:
                     st.session_state.edit_speakers = edit_profile_data.get('speakers', [])
                 
                 for i, speaker in enumerate(st.session_state.edit_speakers):
-                    st.markdown(f"**Speaker {i+1}:**")
+                    st.markdown(f"**说话人 {i+1}：**")
                     col1, col2 = st.columns([4, 1])
                     
                     with col1:
                         speaker_name = st.text_input(
-                            "Name:", 
+                            "姓名：", 
                             key=f"edit_speaker_name_{i}", 
                             value=speaker.get('name', '')
                         )
+                        
+                        if tts_provider == "gpt_sovits":
+                            VoiceProvider.render_gpt_sovits_speaker_file_upload(
+                                working_dir=WORKING_DIR,
+                                key_prefix=f"edit_gpt_{edit_profile_name}",
+                                speaker_index=i,
+                                voice_id_state_key=f"edit_voice_id_{i}",
+                            )
                         
                         # Voice selection with provider-specific voices
                         voice_id = VoiceProvider.render_voice_selector(
@@ -492,21 +834,23 @@ def show_speaker_profiles_page():
                             model=tts_model,
                             current_voice_id=speaker.get('voice_id', ''),
                             key=f"edit_voice_id_{i}",
-                            help_text=f"Choose a voice from {tts_provider}"
+                            help_text=f"从 {tts_provider} 中选择音色"
                         )
                         
-                        # Show voice preview if available
-                        if voice_id and tts_provider == "elevenlabs":
-                            with st.expander("🎵 Voice Preview"):
-                                VoiceProvider.render_voice_preview(tts_provider, voice_id)
+                        VoiceProvider.render_speaker_voice_audition(
+                            tts_provider,
+                            voice_id,
+                            edge_prosody=edit_edge_tts_config,
+                            key_prefix=f"edit_spk_{edit_profile_name}_{i}",
+                        )
                         
                         backstory = st.text_area(
-                            "Backstory:", 
+                            "背景设定：", 
                             key=f"edit_backstory_{i}", 
                             value=speaker.get('backstory', '')
                         )
                         personality = st.text_area(
-                            "Personality:", 
+                            "性格特点：", 
                             key=f"edit_personality_{i}", 
                             value=speaker.get('personality', '')
                         )
@@ -529,7 +873,7 @@ def show_speaker_profiles_page():
                 
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("➕ Add Speaker", key="edit_add_speaker") and len(st.session_state.edit_speakers) < 4:
+                    if st.button("➕ 添加说话人", key="edit_add_speaker") and len(st.session_state.edit_speakers) < 4:
                         st.session_state.edit_speakers.append({'name': '', 'voice_id': '', 'backstory': '', 'personality': ''})
                         st.rerun()
                 
@@ -539,33 +883,43 @@ def show_speaker_profiles_page():
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    if st.button("✅ Save Changes", type="primary", key="save_speaker_changes"):
+                    if st.button("✅ 保存修改", type="primary", key="save_speaker_changes"):
                         # Update profile data
                         updated_profile_data = {
                             "tts_provider": tts_provider,
                             "tts_model": tts_model,
                             "speakers": st.session_state.edit_speakers
                         }
+                        tc = dict(edit_profile_data.get("tts_config") or {})
+                        if tts_provider == "edge_tts" and edit_edge_tts_config:
+                            tc.update(edit_edge_tts_config)
+                            updated_profile_data["tts_config"] = tc
+                        elif tts_provider == "gpt_sovits" and edit_gpt_tts_config is not None:
+                            updated_profile_data["tts_config"] = dict(edit_gpt_tts_config)
+                        elif tts_provider == "voicebox" and edit_voicebox_tts_config is not None:
+                            updated_profile_data["tts_config"] = dict(edit_voicebox_tts_config)
+                        elif tc:
+                            updated_profile_data["tts_config"] = tc
                         
                         # Validate profile
                         validation_errors = profile_manager.validate_speaker_profile(updated_profile_data)
                         if validation_errors:
-                            st.error("❌ Validation errors:")
+                            st.error("❌ 校验失败：")
                             for error in validation_errors:
                                 st.error(f"• {error}")
                         else:
                             # Update the profile
                             if profile_manager.update_speaker_profile(edit_profile_name, updated_profile_data):
-                                st.success(f"✅ Profile '{edit_profile_name}' updated successfully!")
+                                st.success(f"✅ 配置 '{edit_profile_name}' 更新成功！")
                                 st.session_state.edit_speaker_profile = None
                                 if 'edit_speakers' in st.session_state:
                                     del st.session_state.edit_speakers
                                 st.rerun()
                             else:
-                                st.error("❌ Failed to update profile")
+                                st.error("❌ 更新配置失败")
                 
                 with col2:
-                    if st.button("❌ Cancel Edit", key="cancel_edit_speaker"):
+                    if st.button("❌ 取消编辑", key="cancel_edit_speaker"):
                         st.session_state.edit_speaker_profile = None
                         if 'edit_speakers' in st.session_state:
                             del st.session_state.edit_speakers
@@ -573,12 +927,12 @@ def show_speaker_profiles_page():
                 
                 st.markdown("---")
             else:
-                st.error(f"Speaker profile '{edit_profile_name}' not found")
+                st.error(f"未找到说话人配置 '{edit_profile_name}'")
                 st.session_state.edit_speaker_profile = None
                 st.rerun()
         
         # Display existing profiles
-        st.subheader("Existing Speaker Profiles")
+        st.subheader("已有说话人配置")
         
         if profile_names:
             for profile_name in profile_names:
@@ -588,38 +942,83 @@ def show_speaker_profiles_page():
                     col1, col2 = st.columns([3, 1])
                     
                     with col1:
-                        st.markdown(f"**TTS Provider:** {profile_data.get('tts_provider', 'N/A')}")
-                        st.markdown(f"**TTS Model:** {profile_data.get('tts_model', 'N/A')}")
-                        st.markdown(f"**Number of Speakers:** {len(profile_data.get('speakers', []))}")
+                        st.markdown(f"**TTS 提供商：** {profile_data.get('tts_provider', 'N/A')}")
+                        st.markdown(f"**TTS 模型：** {profile_data.get('tts_model', 'N/A')}")
+                        st.markdown(f"**说话人数：** {len(profile_data.get('speakers', []))}")
                         
                         # Show speakers
                         speakers = profile_data.get('speakers', [])
                         if speakers:
-                            st.markdown("**Speakers:**")
+                            st.markdown("**说话人：**")
+                            prof_edge = (
+                                profile_data.get("tts_config")
+                                if profile_data.get("tts_provider") == "edge_tts"
+                                else None
+                            )
                             for i, speaker in enumerate(speakers):
-                                st.markdown(f"• **{speaker.get('name', 'Unnamed')}** - {speaker.get('voice_id', 'No voice ID')}")
+                                st.markdown(
+                                    f"• **{speaker.get('name', '未命名')}** — `{speaker.get('voice_id', '无 voice_id')}`"
+                                )
+                                VoiceProvider.render_speaker_voice_audition(
+                                    profile_data.get("tts_provider", ""),
+                                    speaker.get("voice_id", ""),
+                                    edge_prosody=prof_edge,
+                                    key_prefix=f"lib_{profile_name}_{i}",
+                                )
+                        
+                        if profile_data.get("tts_provider") == "edge_tts":
+                            with st.expander("🎛️ 调节韵律并另存为新配置（副本）", expanded=False):
+                                st.caption(
+                                    "不修改当前配置：根据下方韵律生成一条**新**说话人配置，便于对比试听。"
+                                    " 名称请勿与现有配置重复。"
+                                )
+                                clone_name = st.text_input(
+                                    "新配置名称",
+                                    value=f"{profile_name}_tuned",
+                                    key=f"edge_clone_name_{profile_name}",
+                                )
+                                clone_prosody = VoiceProvider.render_edge_tts_prosody_ui(
+                                    f"edge_prosody_saveas_{profile_name}",
+                                    profile_data.get("tts_config"),
+                                )
+                                if st.button("另存为新配置", key=f"edge_clone_save_{profile_name}"):
+                                    name_ok = clone_name.strip()
+                                    if not name_ok:
+                                        st.error("请填写新配置名称")
+                                    elif name_ok in profile_manager.get_speaker_profile_names():
+                                        st.error("该名称已存在，请换一个。")
+                                    else:
+                                        new_prof = deepcopy(profile_data)
+                                        tc = dict(new_prof.get("tts_config") or {})
+                                        tc.update(clone_prosody)
+                                        new_prof["tts_config"] = tc
+                                        if profile_manager.create_speaker_profile(name_ok, new_prof):
+                                            st.success(f"✅ 已保存副本「{name_ok}」")
+                                            st.rerun()
+                                        else:
+                                            st.error("保存失败。")
                     
                     with col2:
-                        st.markdown("**Actions:**")
+                        st.markdown("**操作：**")
                         
                         # Edit button
-                        if st.button("✏️ Edit", key=f"edit_{profile_name}"):
+                        if st.button("✏️ 编辑", key=f"edit_{profile_name}"):
                             st.session_state.edit_speaker_profile = profile_name
                             st.rerun()
                         
                         # Clone button
-                        if st.button("📋 Clone", key=f"clone_{profile_name}"):
-                            new_name = f"{profile_name}_copy"
+                        if st.button("📋 克隆", key=f"clone_{profile_name}"):
+                            new_name = profile_manager.allocate_clone_name(profile_name, for_episode=False)
                             if profile_manager.clone_speaker_profile(profile_name, new_name):
-                                st.success(f"✅ Profile cloned as '{new_name}'")
+                                st.success(f"✅ 配置已克隆为 '{new_name}'")
                                 st.rerun()
                             else:
-                                st.error("❌ Failed to clone profile")
+                                st.error("❌ 克隆配置失败")
                         
                         # Export button
                         export_data = profile_manager.export_speaker_profiles([profile_name])
                         st.download_button(
-                            label="💾 Export",
+                            label="💾 导出",
                             data=json.dumps(export_data, indent=2),
                             file_name=f"{profile_name}_speaker_config.json",
                             mime="application/json",
@@ -627,23 +1026,23 @@ def show_speaker_profiles_page():
                         )
                         
                         # Delete button
-                        if st.button("🗑️ Delete", key=f"delete_{profile_name}"):
+                        if st.button("🗑️ 删除", key=f"delete_{profile_name}"):
                             if profile_manager.delete_speaker_profile(profile_name):
-                                st.success(f"✅ Profile '{profile_name}' deleted")
+                                st.success(f"✅ 配置 '{profile_name}' 已删除")
                                 st.rerun()
                             else:
-                                st.error("❌ Failed to delete profile")
+                                st.error("❌ 删除配置失败")
         else:
-            st.info("No speaker profiles found. Create your first profile to get started!")
+            st.info("还没有说话人配置，先创建一个吧。")
     
     except Exception as e:
-        st.error(f"Error loading speaker profiles: {str(e)}")
-        st.markdown("Please check your configuration files and try again.")
+        st.error(f"加载说话人配置失败：{str(e)}")
+        st.markdown("请检查配置文件后重试。")
 
 def show_episode_profiles_page():
     """Display the episode profiles management page."""
-    st.subheader("📺 Episode Profiles")
-    st.markdown("Manage your episode configurations")
+    st.subheader("📺 剧集配置")
+    st.markdown("管理你的剧集配置")
     
     # Define available providers for use throughout the function
     all_providers = ["openai", "anthropic", "google", "groq", "ollama", "openrouter", "azure", "mistral", "deepseek", "xai"]
@@ -661,20 +1060,20 @@ def show_episode_profiles_page():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("➕ New Profile", use_container_width=True):
+            if st.button("➕ 新建配置", use_container_width=True):
                 st.session_state.show_new_episode_form = True
                 st.rerun()
         
         with col2:
-            if st.button("📁 Import", use_container_width=True):
+            if st.button("📁 导入", use_container_width=True):
                 st.session_state.show_import_episode_form = True
                 st.rerun()
         
         with col3:
-            if st.button("💾 Export All", use_container_width=True):
+            if st.button("💾 导出全部", use_container_width=True):
                 export_data = profile_manager.export_episode_profiles()
                 st.download_button(
-                    label="Download episodes_config.json",
+                    label="下载 episodes_config.json",
                     data=json.dumps(export_data, indent=2),
                     file_name="episodes_config.json",
                     mime="application/json"
@@ -684,29 +1083,72 @@ def show_episode_profiles_page():
         
         # Import form
         if st.session_state.get("show_import_episode_form", False):
-            st.subheader("📁 Import Episode Profiles")
+            st.subheader("📁 导入剧集配置")
+            episode_import_key_prefix = "episode_import"
             
             uploaded_file = st.file_uploader(
-                "Choose a JSON file to import",
-                type=['json'],
-                key="episode_import_file"
+                "选择要导入的文件（支持 .json / .docx）",
+                type=['json', 'docx'],
+                key=f"{episode_import_key_prefix}_file"
             )
             
             if uploaded_file is not None:
                 try:
-                    file_content = uploaded_file.read().decode('utf-8')
-                    imported_names = profile_manager.import_episode_profiles(file_content)
-                    
-                    if imported_names:
-                        st.success(f"✅ Successfully imported {len(imported_names)} profiles: {', '.join(imported_names)}")
-                        st.session_state.show_import_episode_form = False
+                    parsed_json_text = profile_manager.parse_import_file(
+                        uploaded_file.name, uploaded_file.read(), profile_kind="episode"
+                    )
+                    st.markdown("### 预处理与确认")
+                    st.info("已预处理为 JSON。请先补充关注点并按需编辑，再确认生成 JSON。")
+
+                    episode_focus_points = st.text_area(
+                        "请补充本次关注点（可选）",
+                        key=f"{episode_import_key_prefix}_focus_points",
+                        placeholder="例如：检查 speaker_config 是否存在；统一模型命名；num_segments 控制在 1-10。",
+                        help="用于人工检查导入内容，当前不会自动改写 JSON。"
+                    )
+                    if episode_focus_points.strip():
+                        st.caption(f"已记录关注点：{episode_focus_points.strip()}")
+
+                    edited_json = st.text_area(
+                        "编辑预处理后的 JSON",
+                        value=parsed_json_text,
+                        height=320,
+                        key=f"{episode_import_key_prefix}_edited_json"
+                    )
+
+                    if st.button("✨ 自动规范字段与分段", key=f"{episode_import_key_prefix}_apply_rules_btn"):
+                        updated_json, applied_rules = _apply_episode_json_rules(edited_json)
+                        st.session_state[f"{episode_import_key_prefix}_edited_json"] = updated_json
+                        st.success("已应用规则：" + "；".join(applied_rules))
                         st.rerun()
-                    else:
-                        st.warning("⚠️ No new profiles imported. Check if profiles already exist or file format is correct.")
+
+                    generated_episode_json = None
+                    if st.button("🧪 确认并生成 JSON", key=f"{episode_import_key_prefix}_generate_json_btn"):
+                        candidate = json.loads(edited_json)
+                        if "profiles" not in candidate or not isinstance(candidate["profiles"], dict):
+                            st.error("❌ JSON 格式不正确：必须包含对象类型的 `profiles` 字段。")
+                        else:
+                            generated_episode_json = json.dumps(candidate, ensure_ascii=False, indent=2)
+                            st.success("✅ JSON 校验通过，已生成可下载文件。")
+                            st.download_button(
+                                label="⬇️ 下载生成后的 episodes_config.import.json",
+                                data=generated_episode_json,
+                                file_name="episodes_config.import.json",
+                                mime="application/json",
+                                key=f"{episode_import_key_prefix}_download_generated_json"
+                            )
+                            if st.button("🚀 导入该 JSON", key=f"{episode_import_key_prefix}_import_generated_json"):
+                                imported_names = profile_manager.import_episode_profiles(generated_episode_json)
+                                if imported_names:
+                                    st.success(f"✅ 成功导入 {len(imported_names)} 个配置：{', '.join(imported_names)}")
+                                    st.session_state.show_import_episode_form = False
+                                    st.rerun()
+                                else:
+                                    st.warning("⚠️ 没有导入新配置，请检查是否重名或文件格式是否正确。")
                 except Exception as e:
-                    st.error(f"❌ Error importing profiles: {str(e)}")
+                    st.error(f"❌ 导入配置失败：{str(e)}")
             
-            if st.button("❌ Cancel Import"):
+            if st.button("❌ 取消导入", key=f"{episode_import_key_prefix}_cancel_import"):
                 st.session_state.show_import_episode_form = False
                 st.rerun()
             
@@ -714,76 +1156,76 @@ def show_episode_profiles_page():
         
         # New profile form
         if st.session_state.get("show_new_episode_form", False):
-            st.subheader("➕ Create New Episode Profile")
+            st.subheader("➕ 新建剧集配置")
             
-            profile_name = st.text_input("Profile Name:", placeholder="e.g., my_tech_talks", key="new_episode_name")
+            profile_name = st.text_input("配置名称：", placeholder="例如：my_tech_talks", key="new_episode_name")
             
             if speaker_profile_names:
-                speaker_config = st.selectbox("Speaker Profile:", speaker_profile_names, key="new_episode_speaker")
+                speaker_config = st.selectbox("说话人配置：", speaker_profile_names, key="new_episode_speaker")
             else:
-                st.error("⚠️ No speaker profiles found. Please create a speaker profile first.")
+                st.error("⚠️ 未找到说话人配置，请先创建。")
                 speaker_config = None
             
-            st.markdown("### AI Model Configuration")
+            st.markdown("### AI 模型配置")
             
             # Outline Model Configuration
-            st.markdown("**Outline Generation:**")
+            st.markdown("**大纲生成：**")
             col1, col2 = st.columns(2)
             with col1:
                 outline_provider = ProviderChecker.render_provider_selector(
-                    "Outline Provider:",
+                    "大纲提供商：",
                     all_providers,
-                    current_provider="openai",
+                    current_provider="ollama",
                     key="new_episode_outline_provider",
-                    help_text="Choose an AI provider for generating podcast outlines"
+                    help_text="选择用于生成播客大纲的 AI 提供商"
                 )
             with col2:
                 # Get default model for selected provider
                 defaults = ProviderChecker.get_default_models(outline_provider)
-                default_outline_model = defaults.get("outline", "gpt-4o")
+                default_outline_model = defaults.get("outline", "qwen3:8b")
                 
                 outline_model = st.text_input(
-                    "Outline Model:",
+                    "大纲模型：",
                     value=default_outline_model,
                     placeholder=default_outline_model,
                     key="new_episode_outline_model"
                 )
             
             # Transcript Model Configuration
-            st.markdown("**Transcript Generation:**")
+            st.markdown("**对话稿生成：**")
             col1, col2 = st.columns(2)
             with col1:
                 transcript_provider = ProviderChecker.render_provider_selector(
-                    "Transcript Provider:",
+                    "对话稿提供商：",
                     all_providers,
-                    current_provider="openai",
+                    current_provider="ollama",
                     key="new_episode_transcript_provider",
-                    help_text="Choose an AI provider for generating podcast transcripts"
+                    help_text="选择用于生成播客对话稿的 AI 提供商"
                 )
             with col2:
                 # Get default model for selected provider
                 defaults = ProviderChecker.get_default_models(transcript_provider)
-                default_transcript_model = defaults.get("transcript", "gpt-4o")
+                default_transcript_model = defaults.get("transcript", "qwen3:8b")
                 
                 transcript_model = st.text_input(
-                    "Transcript Model:",
+                    "对话稿模型：",
                     value=default_transcript_model,
                     placeholder=default_transcript_model,
                     key="new_episode_transcript_model"
                 )
             
-            num_segments = st.slider("Number of Segments:", 1, 10, 4, key="new_episode_segments")
+            num_segments = st.slider("分段数量：", 1, 10, 4, key="new_episode_segments")
 
             language = st.text_input(
-                "Language:",
-                placeholder="e.g., pt, pt-BR, es, fr (leave empty for English)",
+                "语言：",
+                placeholder="例如：zh-CN、pt-BR、es（留空默认英文）",
                 key="new_episode_language",
-                help="Language code for podcast generation. Uses ISO 639-1 (e.g., 'pt') or BCP 47 (e.g., 'pt-BR') format."
+                help="播客生成语言代码，支持 ISO 639-1（如 `zh`）或 BCP 47（如 `zh-CN`）。"
             )
 
             default_briefing = st.text_area(
-                "Default Briefing:",
-                value="Create an engaging discussion about the topic",
+                "默认提示词：",
+                value="请围绕主题生成结构清晰、表达自然的播客内容。",
                 height=100,
                 key="new_episode_briefing"
             )
@@ -794,13 +1236,13 @@ def show_episode_profiles_page():
             col1, col2 = st.columns(2)
 
             with col1:
-                if st.button("✅ Create Profile", type="primary", key="create_episode_profile"):
+                if st.button("✅ 创建配置", type="primary", key="create_episode_profile"):
                     if not profile_name:
-                        st.error("Profile name is required")
+                        st.error("请填写配置名称")
                     elif profile_name in profile_names:
-                        st.error(f"Profile '{profile_name}' already exists")
+                        st.error(f"配置 '{profile_name}' 已存在")
                     elif not speaker_config:
-                        st.error("Speaker profile is required")
+                        st.error("请选择说话人配置")
                     else:
                         # Create profile data with provider information
                         profile_data = {
@@ -818,20 +1260,20 @@ def show_episode_profiles_page():
                         # Validate profile
                         validation_errors = profile_manager.validate_episode_profile(profile_data)
                         if validation_errors:
-                            st.error("❌ Validation errors:")
+                            st.error("❌ 校验失败：")
                             for error in validation_errors:
                                 st.error(f"• {error}")
                         else:
                             # Create the profile
                             if profile_manager.create_episode_profile(profile_name, profile_data):
-                                st.success(f"✅ Profile '{profile_name}' created successfully!")
+                                st.success(f"✅ 配置 '{profile_name}' 创建成功！")
                                 st.session_state.show_new_episode_form = False
                                 st.rerun()
                             else:
-                                st.error("❌ Failed to create profile")
+                                st.error("❌ 创建配置失败")
             
             with col2:
-                if st.button("❌ Cancel", key="cancel_new_episode"):
+                if st.button("❌ 取消", key="cancel_new_episode"):
                     st.session_state.show_new_episode_form = False
                     st.rerun()
             
@@ -843,11 +1285,11 @@ def show_episode_profiles_page():
             edit_profile_data = profile_manager.get_episode_profile(edit_profile_name)
             
             if edit_profile_data:
-                st.subheader(f"✏️ Edit Episode Profile: {edit_profile_name}")
+                st.subheader(f"✏️ 编辑剧集配置：{edit_profile_name}")
                 
                 # Profile name (allow renaming)
                 new_profile_name = st.text_input(
-                    "Profile Name:", 
+                    "配置名称：", 
                     value=edit_profile_name,
                     key="edit_episode_profile_name"
                 )
@@ -858,84 +1300,84 @@ def show_episode_profiles_page():
                         current_speaker_index = speaker_profile_names.index(edit_profile_data['speaker_config'])
                     
                     speaker_config = st.selectbox(
-                        "Speaker Profile:", 
+                        "说话人配置：", 
                         speaker_profile_names, 
                         index=current_speaker_index,
                         key="edit_episode_speaker"
                     )
                 else:
-                    st.error("⚠️ No speaker profiles found.")
+                    st.error("⚠️ 未找到说话人配置。")
                     speaker_config = edit_profile_data.get('speaker_config', '')
                 
-                st.markdown("### AI Model Configuration")
+                st.markdown("### AI 模型配置")
                 
                 # Outline Model Configuration
-                st.markdown("**Outline Generation:**")
+                st.markdown("**大纲生成：**")
                 col1, col2 = st.columns(2)
                 with col1:
-                    current_outline_provider = edit_profile_data.get('outline_provider', 'openai')
+                    current_outline_provider = edit_profile_data.get('outline_provider', 'ollama')
                     outline_provider = ProviderChecker.render_provider_selector(
-                        "Outline Provider:",
+                        "大纲提供商：",
                         all_providers,
                         current_provider=current_outline_provider,
                         key="edit_episode_outline_provider",
-                        help_text="Choose an AI provider for generating podcast outlines"
+                        help_text="选择用于生成播客大纲的 AI 提供商"
                     )
                 with col2:
                     # Get default model for selected provider
                     defaults = ProviderChecker.get_default_models(outline_provider)
-                    default_model = defaults.get("outline", "gpt-4o")
+                    default_model = defaults.get("outline", "qwen3:8b")
                     
                     current_outline_model = edit_profile_data.get('outline_model', default_model)
                     outline_model = st.text_input(
-                        "Outline Model:", 
+                        "大纲模型：", 
                         value=current_outline_model,
                         placeholder=default_model,
                         key="edit_episode_outline_model"
                     )
                 
                 # Transcript Model Configuration
-                st.markdown("**Transcript Generation:**")
+                st.markdown("**对话稿生成：**")
                 col1, col2 = st.columns(2)
                 with col1:
-                    current_transcript_provider = edit_profile_data.get('transcript_provider', 'openai')
+                    current_transcript_provider = edit_profile_data.get('transcript_provider', 'ollama')
                     transcript_provider = ProviderChecker.render_provider_selector(
-                        "Transcript Provider:",
+                        "对话稿提供商：",
                         all_providers,
                         current_provider=current_transcript_provider,
                         key="edit_episode_transcript_provider",
-                        help_text="Choose an AI provider for generating podcast transcripts"
+                        help_text="选择用于生成播客对话稿的 AI 提供商"
                     )
                 with col2:
                     # Get default model for selected provider
                     defaults = ProviderChecker.get_default_models(transcript_provider)
-                    default_model = defaults.get("transcript", "gpt-4o")
+                    default_model = defaults.get("transcript", "qwen3:8b")
                     
                     current_transcript_model = edit_profile_data.get('transcript_model', default_model)
                     transcript_model = st.text_input(
-                        "Transcript Model:", 
+                        "对话稿模型：", 
                         value=current_transcript_model,
                         placeholder=default_model,
                         key="edit_episode_transcript_model"
                     )
                 
                 num_segments = st.slider(
-                    "Number of Segments:",
+                    "分段数量：",
                     1, 10,
                     value=edit_profile_data.get('num_segments', 4),
                     key="edit_episode_segments"
                 )
 
                 language = st.text_input(
-                    "Language:",
+                    "语言：",
                     value=edit_profile_data.get('language', ''),
-                    placeholder="e.g., pt, pt-BR, es, fr (leave empty for English)",
+                    placeholder="例如：zh-CN、pt-BR、es（留空默认英文）",
                     key="edit_episode_language",
-                    help="Language code for podcast generation. Uses ISO 639-1 (e.g., 'pt') or BCP 47 (e.g., 'pt-BR') format."
+                    help="播客生成语言代码，支持 ISO 639-1（如 `zh`）或 BCP 47（如 `zh-CN`）。"
                 )
 
                 default_briefing = st.text_area(
-                    "Default Briefing:",
+                    "默认提示词：",
                     value=edit_profile_data.get('default_briefing', ''),
                     height=100,
                     key="edit_episode_briefing"
@@ -947,11 +1389,11 @@ def show_episode_profiles_page():
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    if st.button("✅ Save Changes", type="primary", key="save_episode_changes"):
+                    if st.button("✅ 保存修改", type="primary", key="save_episode_changes"):
                         if not new_profile_name.strip():
-                            st.error("Profile name cannot be empty")
+                            st.error("配置名称不能为空")
                         elif new_profile_name != edit_profile_name and new_profile_name in profile_names:
-                            st.error(f"Profile name '{new_profile_name}' already exists")
+                            st.error(f"配置名称 '{new_profile_name}' 已存在")
                         else:
                             # Update profile data with provider information
                             updated_profile_data = {
@@ -969,7 +1411,7 @@ def show_episode_profiles_page():
                             # Validate profile
                             validation_errors = profile_manager.validate_episode_profile(updated_profile_data)
                             if validation_errors:
-                                st.error("❌ Validation errors:")
+                                st.error("❌ 校验失败：")
                                 for error in validation_errors:
                                     st.error(f"• {error}")
                             else:
@@ -979,34 +1421,34 @@ def show_episode_profiles_page():
                                     if profile_manager.create_episode_profile(new_profile_name, updated_profile_data):
                                         # Delete old profile
                                         if profile_manager.delete_episode_profile(edit_profile_name):
-                                            st.success(f"✅ Profile renamed from '{edit_profile_name}' to '{new_profile_name}' and updated successfully!")
+                                            st.success(f"✅ 已将配置从 '{edit_profile_name}' 重命名为 '{new_profile_name}' 并更新成功！")
                                         else:
-                                            st.warning(f"✅ New profile '{new_profile_name}' created, but failed to delete old profile '{edit_profile_name}'")
+                                            st.warning(f"✅ 新配置 '{new_profile_name}' 已创建，但删除旧配置 '{edit_profile_name}' 失败。")
                                     else:
-                                        st.error("❌ Failed to create renamed profile")
+                                        st.error("❌ 创建重命名后的配置失败")
                                 else:
                                     # Update existing profile
                                     if profile_manager.update_episode_profile(edit_profile_name, updated_profile_data):
-                                        st.success(f"✅ Profile '{edit_profile_name}' updated successfully!")
+                                        st.success(f"✅ 配置 '{edit_profile_name}' 更新成功！")
                                     else:
-                                        st.error("❌ Failed to update profile")
+                                        st.error("❌ 更新配置失败")
                                 
                                 st.session_state.edit_episode_profile = None
                                 st.rerun()
                 
                 with col2:
-                    if st.button("❌ Cancel Edit", key="cancel_edit_episode"):
+                    if st.button("❌ 取消编辑", key="cancel_edit_episode"):
                         st.session_state.edit_episode_profile = None
                         st.rerun()
                 
                 st.markdown("---")
             else:
-                st.error(f"Episode profile '{edit_profile_name}' not found")
+                st.error(f"未找到剧集配置 '{edit_profile_name}'")
                 st.session_state.edit_episode_profile = None
                 st.rerun()
         
         # Display existing profiles
-        st.subheader("Existing Episode Profiles")
+        st.subheader("已有剧集配置")
         
         if profile_names:
             # Display as grid
@@ -1018,42 +1460,42 @@ def show_episode_profiles_page():
                 with cols[i % 3]:
                     with st.container(border=True):
                         st.markdown(f"### 📺 {profile_name}")
-                        st.markdown(f"**Speaker:** {profile_data.get('speaker_config', 'N/A')}")
-                        st.markdown(f"**Segments:** {profile_data.get('num_segments', 'N/A')}")
+                        st.markdown(f"**说话人配置：** {profile_data.get('speaker_config', 'N/A')}")
+                        st.markdown(f"**分段数：** {profile_data.get('num_segments', 'N/A')}")
                         
-                        outline_provider = profile_data.get('outline_provider', 'openai')
+                        outline_provider = profile_data.get('outline_provider', 'ollama')
                         outline_model = profile_data.get('outline_model', 'N/A')
-                        st.markdown(f"**Outline:** {outline_provider}/{outline_model}")
+                        st.markdown(f"**大纲：** {outline_provider}/{outline_model}")
                         
-                        transcript_provider = profile_data.get('transcript_provider', 'openai')
+                        transcript_provider = profile_data.get('transcript_provider', 'ollama')
                         transcript_model = profile_data.get('transcript_model', 'N/A')
-                        st.markdown(f"**Transcript:** {transcript_provider}/{transcript_model}")
+                        st.markdown(f"**对话稿：** {transcript_provider}/{transcript_model}")
 
                         profile_language = profile_data.get('language')
                         if profile_language:
-                            st.markdown(f"**Language:** {profile_language}")
+                            st.markdown(f"**语言：** {profile_language}")
 
                         # Action buttons
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            if st.button("✏️ Edit", key=f"edit_ep_{profile_name}", use_container_width=True):
+                            if st.button("✏️ 编辑", key=f"edit_ep_{profile_name}", use_container_width=True):
                                 st.session_state.edit_episode_profile = profile_name
                                 st.rerun()
                         
                         with col2:
-                            if st.button("📋 Clone", key=f"clone_ep_{profile_name}", use_container_width=True):
-                                new_name = f"{profile_name}_copy"
+                            if st.button("📋 克隆", key=f"clone_ep_{profile_name}", use_container_width=True):
+                                new_name = profile_manager.allocate_clone_name(profile_name, for_episode=True)
                                 if profile_manager.clone_episode_profile(profile_name, new_name):
-                                    st.success(f"✅ Cloned as '{new_name}'")
+                                    st.success(f"✅ 已克隆为 '{new_name}'")
                                     st.rerun()
                                 else:
-                                    st.error("❌ Failed to clone")
+                                    st.error("❌ 克隆失败")
                         
                         # Export button
                         export_data = profile_manager.export_episode_profiles([profile_name])
                         st.download_button(
-                            label="💾 Export",
+                            label="💾 导出",
                             data=json.dumps(export_data, indent=2),
                             file_name=f"{profile_name}_episode_config.json",
                             mime="application/json",
@@ -1062,33 +1504,33 @@ def show_episode_profiles_page():
                         )
                         
                         # Delete button
-                        if st.button("🗑️ Delete", key=f"delete_ep_{profile_name}", use_container_width=True):
+                        if st.button("🗑️ 删除", key=f"delete_ep_{profile_name}", use_container_width=True):
                             if profile_manager.delete_episode_profile(profile_name):
-                                st.success(f"✅ Deleted '{profile_name}'")
+                                st.success(f"✅ 已删除 '{profile_name}'")
                                 st.rerun()
                             else:
-                                st.error("❌ Failed to delete")
+                                st.error("❌ 删除失败")
                         
                         # Show more details in expander
-                        with st.expander("📋 Details"):
-                            st.markdown(f"**Outline Provider:** {profile_data.get('outline_provider', 'openai')}")
-                            st.markdown(f"**Outline Model:** {profile_data.get('outline_model', 'N/A')}")
-                            st.markdown(f"**Transcript Provider:** {profile_data.get('transcript_provider', 'openai')}")
-                            st.markdown(f"**Transcript Model:** {profile_data.get('transcript_model', 'N/A')}")
-                            st.markdown(f"**Language:** {profile_data.get('language', 'Default (English)')}")
-                            st.markdown("**Default Briefing:**")
-                            st.text(profile_data.get('default_briefing', 'No briefing set'))
+                        with st.expander("📋 详情"):
+                            st.markdown(f"**大纲提供商：** {profile_data.get('outline_provider', 'ollama')}")
+                            st.markdown(f"**大纲模型：** {profile_data.get('outline_model', 'N/A')}")
+                            st.markdown(f"**对话稿提供商：** {profile_data.get('transcript_provider', 'ollama')}")
+                            st.markdown(f"**对话稿模型：** {profile_data.get('transcript_model', 'N/A')}")
+                            st.markdown(f"**语言：** {profile_data.get('language', '默认（英文）')}")
+                            st.markdown("**默认提示词：**")
+                            st.text(profile_data.get('default_briefing', '未设置提示词'))
         else:
-            st.info("No episode profiles found. Create your first profile to get started!")
+            st.info("还没有剧集配置，先创建一个吧。")
     
     except Exception as e:
-        st.error(f"Error loading episode profiles: {str(e)}")
-        st.markdown("Please check your configuration files and try again.")
+        st.error(f"加载剧集配置失败：{str(e)}")
+        st.markdown("请检查配置文件后重试。")
 
 def show_generate_podcast_page():
     """Display the podcast generation page."""
-    st.subheader("🎬 Generate Podcast")
-    st.markdown("Create new podcast episodes")
+    st.subheader("🎬 生成播客")
+    st.markdown("创建新的播客剧集")
     
     # Initialize managers
     profile_manager = ProfileManager(working_dir=WORKING_DIR)
@@ -1100,54 +1542,61 @@ def show_generate_podcast_page():
         speaker_profiles = profile_manager.get_speaker_profile_names()
         
         if not episode_profiles:
-            st.error("⚠️ No episode profiles found. Please create an episode profile first.")
-            if st.button("📺 Go to Episode Profiles"):
-                st.session_state.current_page = "📺 Episode Profiles"
+            st.error("⚠️ 未找到剧集配置，请先创建。")
+            if st.button("📺 前往剧集配置"):
+                _set_current_page("episode_profiles")
+                st.rerun()
+            return
+        
+        if not speaker_profiles:
+            st.error("⚠️ 未找到说话人配置（speakers_config.json 无 profiles）。请先创建或检查工作目录。")
+            if st.button("🎙️ 前往说话人配置"):
+                _set_current_page("speaker_profiles")
                 st.rerun()
             return
         
         # Content input section
-        st.markdown("### Step 1: Content Collection")
+        st.markdown("### 第一步：内容收集")
         
         # Initialize session state for content pieces
         if 'content_pieces' not in st.session_state:
             st.session_state.content_pieces = []
         
         # Add new content section
-        with st.expander("➕ Add Content", expanded=len(st.session_state.content_pieces) == 0):
+        with st.expander("➕ 添加内容", expanded=len(st.session_state.content_pieces) == 0):
             content_source = st.radio(
-                "Content Source:",
-                ["Text Input", "File Upload", "URL"],
+                "内容来源：",
+                ["文本输入", "文件上传", "URL"],
                 horizontal=True,
                 key="new_content_source"
             )
             
-            if content_source == "Text Input":
-                text_content = st.text_area("Enter your content:", height=150, placeholder="Paste your content here...", key="new_text_input")
+            if content_source == "文本输入":
+                text_content = st.text_area("输入内容：", height=150, placeholder="请粘贴你的内容...", key="new_text_input")
                 
-                if st.button("📝 Add Text Content", disabled=not text_content.strip()):
+                if st.button("📝 添加文本内容", disabled=not text_content.strip()):
                     if text_content.strip():
                         content_piece = {
                             'type': 'text',
-                            'title': f"Text Content {len(st.session_state.content_pieces) + 1}",
+                            'title': f"文本内容 {len(st.session_state.content_pieces) + 1}",
                             'content': text_content.strip(),
-                            'source': 'Direct input'
+                            'source': '直接输入'
                         }
                         st.session_state.content_pieces.append(content_piece)
                         st.rerun()
             
-            elif content_source == "File Upload":
+            elif content_source == "文件上传":
                 uploaded_file = st.file_uploader(
-                    "Upload a file:", 
+                    "上传文件：", 
                     type=['txt', 'pdf', 'docx', 'md', 'json'],
-                    help="Supported formats: TXT, PDF, DOCX, MD, JSON",
+                    help="支持格式：TXT、PDF、DOCX、MD、JSON",
                     key="new_file_uploader"
                 )
                 
-                if uploaded_file is not None and st.button("📄 Add File Content"):
+                if uploaded_file is not None and st.button("📄 添加文件内容"):
                     try:
                         if ContentExtractor.is_content_core_available():
-                            with st.spinner("Extracting content from file..."):
+                            with st.spinner("正在提取文件内容..."):
                                 extracted_content = ContentExtractor.extract_from_uploaded_file(uploaded_file)
                                 content_piece = {
                                     'type': 'file',
@@ -1156,21 +1605,21 @@ def show_generate_podcast_page():
                                     'source': f"File: {uploaded_file.name}"
                                 }
                                 st.session_state.content_pieces.append(content_piece)
-                                st.success(f"✅ Added content from {uploaded_file.name}")
+                                st.success(f"✅ 已添加来自 {uploaded_file.name} 的内容")
                                 st.rerun()
                         else:
-                            st.error("⚠️ content-core library not available. Install it with: `pip install content-core`")
+                            st.error("⚠️ content-core 库不可用，请先安装：`pip install content-core`")
                     except Exception as e:
-                        st.error(f"❌ Error extracting content: {str(e)}")
+                        st.error(f"❌ 提取内容失败：{str(e)}")
             
             else:  # URL
-                url = st.text_input("Enter URL:", placeholder="https://example.com/article", key="new_url_input")
+                url = st.text_input("输入 URL：", placeholder="https://example.com/article", key="new_url_input")
                 
-                if url and st.button("🔗 Add URL Content"):
+                if url and st.button("🔗 添加 URL 内容"):
                     if ContentExtractor.validate_url(url):
                         try:
                             if ContentExtractor.is_content_core_available():
-                                with st.spinner("Extracting content from URL..."):
+                                with st.spinner("正在提取 URL 内容..."):
                                     extracted_content = run_async_in_streamlit(ContentExtractor.extract_from_url, url)
                                     content_piece = {
                                         'type': 'url',
@@ -1179,18 +1628,18 @@ def show_generate_podcast_page():
                                         'source': f"URL: {url}"
                                     }
                                     st.session_state.content_pieces.append(content_piece)
-                                    st.success("✅ Added content from URL")
+                                    st.success("✅ 已添加 URL 内容")
                                     st.rerun()
                             else:
-                                st.error("⚠️ content-core library not available. Install it with: `pip install content-core`")
+                                st.error("⚠️ content-core 库不可用，请先安装：`pip install content-core`")
                         except Exception as e:
                             ErrorHandler.handle_streamlit_error(e, {"url": url})
                     else:
-                        st.error("❌ Invalid or inaccessible URL")
+                        st.error("❌ URL 无效或无法访问")
         
         # Display content pieces
         if st.session_state.content_pieces:
-            st.markdown("### Content Pieces")
+            st.markdown("### 内容片段")
 
             for i, piece in enumerate(st.session_state.content_pieces):
                 with st.container(border=True):
@@ -1200,127 +1649,177 @@ def show_generate_podcast_page():
                         # Show content piece info
                         type_icon = {"text": "📝", "file": "📄", "url": "🔗"}.get(piece['type'], "📄")
                         st.markdown(f"**{type_icon} {piece['title']}**")
-                        st.markdown(f"*Source: {piece['source']}*")
+                        st.markdown(f"*来源：{piece['source']}*")
                         
                         # Content stats
                         piece_stats = ContentExtractor.get_content_stats(piece['content'])
-                        st.markdown(f"📊 {piece_stats['character_count']} chars, {piece_stats['word_count']} words")
+                        st.markdown(f"📊 {piece_stats['character_count']} 字符，{piece_stats['word_count']} 词")
                         
                         # Preview
-                        with st.expander("👀 Preview"):
+                        with st.expander("👀 预览"):
                             preview = ContentExtractor.truncate_content(piece['content'], 300)
                             st.text(preview)
                     
                     with col2:
                         # Move up/down buttons
                         if i > 0:
-                            if st.button("⬆️", key=f"move_up_{i}", help="Move up"):
+                            if st.button("⬆️", key=f"move_up_{i}", help="上移"):
                                 st.session_state.content_pieces[i], st.session_state.content_pieces[i-1] = st.session_state.content_pieces[i-1], st.session_state.content_pieces[i]
                                 st.rerun()
                         
                         if i < len(st.session_state.content_pieces) - 1:
-                            if st.button("⬇️", key=f"move_down_{i}", help="Move down"):
+                            if st.button("⬇️", key=f"move_down_{i}", help="下移"):
                                 st.session_state.content_pieces[i], st.session_state.content_pieces[i+1] = st.session_state.content_pieces[i+1], st.session_state.content_pieces[i]
                                 st.rerun()
                     
                     with col3:
                         # Delete button
-                        if st.button("🗑️", key=f"delete_content_{i}", help="Delete"):
+                        if st.button("🗑️", key=f"delete_content_{i}", help="删除"):
                             st.session_state.content_pieces.pop(i)
                             st.rerun()
 
             # Actions
-            if st.button("🔄 Clear All Content", type="secondary"):
+            if st.button("🔄 清空全部内容", type="secondary"):
                 st.session_state.content_pieces = []
                 st.rerun()
             
             # Set content for generation (pass array instead of concatenated string)
             content_pieces = st.session_state.content_pieces
         else:
-            st.info("📝 No content added yet. Use the 'Add Content' section above to add text, files, or URLs.")
+            st.info("📝 还没有添加内容，请在上方“添加内容”区域加入文本、文件或 URL。")
             content_pieces = []
         
         st.markdown("---")
         
         # Configuration section
-        st.markdown("### Step 2: Configuration")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
+        st.markdown("### 第二步：参数配置")
+        _prof_stats = profile_manager.get_profiles_stats()
+        st.caption(
+            f"配置根目录：**`{WORKING_DIR}`** · "
+            f"已加载 **{_prof_stats['episode_profiles_count']}** 条剧集配置、"
+            f"**{_prof_stats['speaker_profiles_count']}** 条说话人配置"
+            f"（全部 profile 内说话人角色合计 **{_prof_stats['total_speakers']}** 个，可与首页统计对照）。"
+            " 与管理页同源；子目录启动时会向上查找含两份 JSON 的目录。"
+        )
+
+        if "episode_profile_select" not in st.session_state:
+            if "local_default" in episode_profiles:
+                st.session_state.episode_profile_select = "local_default"
+            elif "solo_expert_quality_local" in episode_profiles:
+                st.session_state.episode_profile_select = "solo_expert_quality_local"
+            elif episode_profiles:
+                st.session_state.episode_profile_select = episode_profiles[0]
+
+        def _on_episode_profile_changed() -> None:
+            ep = st.session_state.episode_profile_select
+            pd_local = profile_manager.get_episode_profile(ep)
+            sc = (pd_local or {}).get("speaker_config")
+            if sc and speaker_profiles and sc in speaker_profiles:
+                st.session_state.speaker_profile_select = sc
+
+        col_ep, col_sp = st.columns(2)
+        with col_ep:
             episode_profile = st.selectbox(
-                "Episode Profile:",
+                "剧集配置：",
                 episode_profiles,
-                help="Choose a pre-configured episode profile",
-                key="episode_profile_select"
+                help="与「剧集配置」页面列表一致",
+                key="episode_profile_select",
+                on_change=_on_episode_profile_changed,
             )
-        
-        with col2:
-            use_defaults = st.checkbox("Use profile defaults", value=True, key="use_profile_defaults")
-        
-        # Load selected profile data
+        with col_sp:
+            if "speaker_profile_select" not in st.session_state:
+                pd_init = profile_manager.get_episode_profile(episode_profile)
+                sc_init = (pd_init or {}).get("speaker_config")
+                st.session_state.speaker_profile_select = (
+                    sc_init
+                    if sc_init in speaker_profiles
+                    else (speaker_profiles[0] if speaker_profiles else "")
+                )
+            st.selectbox(
+                "说话人配置：",
+                speaker_profiles,
+                help="与「说话人配置」页面一致。切换剧集时自动对齐 JSON 中的 speaker_config，可再改选。",
+                key="speaker_profile_select",
+            )
+
+        speaker_config = st.session_state.get("speaker_profile_select") or (
+            speaker_profiles[0] if speaker_profiles else ""
+        )
+
+        use_defaults = st.checkbox(
+            "使用配置默认值",
+            value=True,
+            key="use_profile_defaults",
+            help="开启时模型、分段数等沿用剧集 JSON；说话人以上方下拉框为准。",
+        )
+
         profile_data = profile_manager.get_episode_profile(episode_profile)
         
+        briefing = ""
+        briefing_suffix = ""
+        outline_model = "qwen3:8b"
+        transcript_model = "qwen3:8b"
+        num_segments = 4
+
         if profile_data:
-            st.markdown(f"**Profile Info:** {profile_data.get('default_briefing', 'No description')}")
-            
-            # Override options
+            st.markdown(f"**配置说明：** {profile_data.get('default_briefing', '无描述')}")
+            st.markdown(
+                f"**该剧集在 JSON 中绑定的说话人：** `{profile_data.get('speaker_config', 'N/A')}` "
+                "（实际生成使用上方「说话人配置」所选名称）"
+            )
+
             if not use_defaults:
-                with st.expander("🔧 Override Settings", expanded=True):
-                    speaker_config = st.selectbox(
-                        "Speaker Config:",
-                        speaker_profiles,
-                        index=speaker_profiles.index(profile_data['speaker_config']) if profile_data['speaker_config'] in speaker_profiles else 0
-                    )
-                    
+                with st.expander("🔧 覆盖设置（模型 / 分段 / 提示词）", expanded=True):
                     outline_model = st.text_input(
-                        "Outline Model:",
-                        value=profile_data.get('outline_model', 'gpt-4o')
+                        "大纲模型：",
+                        value=profile_data.get('outline_model', 'qwen3:8b')
                     )
-                    
                     transcript_model = st.text_input(
-                        "Transcript Model:",
-                        value=profile_data.get('transcript_model', 'gpt-4o')
+                        "对话稿模型：",
+                        value=profile_data.get('transcript_model', 'qwen3:8b')
                     )
-                    
                     num_segments = st.slider(
-                        "Number of Segments:",
+                        "分段数量：",
                         1, 10,
                         value=profile_data.get('num_segments', 4)
                     )
-                    
                     briefing = st.text_area(
-                        "Briefing:",
+                        "提示词：",
                         value=profile_data.get('default_briefing', ''),
                         height=100
                     )
-                    
                     briefing_suffix = st.text_input(
-                        "Briefing Suffix:",
-                        placeholder="Additional instructions..."
+                        "提示词补充：",
+                        placeholder="补充额外要求..."
                     )
             else:
-                # Use profile defaults
-                speaker_config = profile_data['speaker_config']
-                outline_model = profile_data.get('outline_model', 'gpt-4o')
-                transcript_model = profile_data.get('transcript_model', 'gpt-4o')
+                outline_model = profile_data.get('outline_model', 'qwen3:8b')
+                transcript_model = profile_data.get('transcript_model', 'qwen3:8b')
                 num_segments = profile_data.get('num_segments', 4)
                 briefing = profile_data.get('default_briefing', '')
                 briefing_suffix = ""
 
-            # Language setting (always visible, outside override block)
             language = st.text_input(
-                "Language:",
+                "语言：",
                 value=profile_data.get('language', ''),
-                placeholder="e.g., pt, pt-BR, es, fr (leave empty for English)",
+                placeholder="例如：zh-CN、pt-BR、es（留空默认英文）",
                 key="generation_language",
-                help="Language code for podcast generation. Uses ISO 639-1 (e.g., 'pt') or BCP 47 (e.g., 'pt-BR') format."
+                help="播客生成语言代码，支持 ISO 639-1（如 `zh`）或 BCP 47（如 `zh-CN`）。"
+            )
+        else:
+            st.error(f"未找到剧集配置「{episode_profile}」，请检查 episodes_config.json。")
+            language = st.text_input(
+                "语言：",
+                value="",
+                placeholder="例如：zh-CN、pt-BR、es（留空默认英文）",
+                key="generation_language",
+                help="播客生成语言代码。",
             )
 
         st.markdown("---")
         
         # Briefing editor section
-        st.markdown("### Step 3: Briefing Editor")
+        st.markdown("### 第三步：提示词编辑")
         
         # Initialize briefing in session state if not exists or if profile changed
         if 'custom_briefing' not in st.session_state or 'last_episode_profile' not in st.session_state:
@@ -1335,14 +1834,14 @@ def show_generate_podcast_page():
         col1, col2 = st.columns([3, 1])
         with col1:
             custom_briefing = st.text_area(
-                "Edit Briefing:",
+                "编辑提示词：",
                 value=st.session_state.custom_briefing,
                 height=120,
-                help="Edit the briefing that will be sent to the AI model for podcast generation",
+                help="编辑将发送给 AI 的生成提示词",
                 key="custom_briefing_editor"
             )
         with col2:
-            if st.button("🔄 Reset to Default", key="reset_briefing"):
+            if st.button("🔄 恢复默认", key="reset_briefing"):
                 st.session_state.custom_briefing = briefing
                 st.rerun()
         
@@ -1351,8 +1850,8 @@ def show_generate_podcast_page():
         
         # Show briefing preview
         if custom_briefing:
-            with st.expander("📋 Briefing Preview"):
-                st.markdown("**Final briefing that will be sent to the AI:**")
+            with st.expander("📋 提示词预览"):
+                st.markdown("**最终发送给 AI 的提示词：**")
                 final_briefing = custom_briefing
                 if not use_defaults and briefing_suffix:
                     final_briefing += f"\n\n{briefing_suffix}"
@@ -1361,30 +1860,64 @@ def show_generate_podcast_page():
         st.markdown("---")
         
         # Output settings section
-        st.markdown("### Step 4: Output Settings")
+        st.markdown("### 第四步：输出设置")
         
         col1, col2 = st.columns(2)
         
         with col1:
             episode_name = st.text_input(
-                "Episode Name:",
+                "剧集名称：",
                 placeholder="my_awesome_podcast",
-                help="This will be used as the folder name"
+                help="将作为输出文件夹名称"
             )
         
         with col2:
             output_dir = st.text_input(
-                "Output Directory:",
+                "输出目录：",
                 value="output",
-                help="Base directory for podcast output"
+                help="播客输出的根目录"
+            )
+
+        with st.expander("🎵 背景音乐（可选）", expanded=False):
+            st.caption(
+                "在合成最终 MP3 时叠混背景音乐：片头模式仅覆盖开场一段时间（类似新闻提要）；全程模式垫底整集。"
+                "需使用本机音频文件（mp3/wav 等，与 pydub 兼容）。"
+            )
+            st.selectbox(
+                "BGM 模式",
+                options=list(_STUDIO_BGM_OPTIONS),
+                index=0,
+                key="studio_bgm_mode",
+                help="选择「关闭」则不叠混。",
+            )
+            st.text_input(
+                "BGM 文件路径",
+                value="",
+                placeholder="相对配置目录或绝对路径，例如 assets/bgm.mp3",
+                key="studio_bgm_path",
+            )
+            st.slider(
+                "片头 BGM 时长（秒）",
+                min_value=3,
+                max_value=60,
+                value=12,
+                key="studio_bgm_intro_sec",
+                help="仅在「片头 BGM」模式下生效。",
+            )
+            st.slider(
+                "BGM 相对音量（dB，数值越小越淡）",
+                min_value=-36,
+                max_value=-6,
+                value=-20,
+                key="studio_bgm_gain_db",
             )
         
         # Check if episode exists
         if episode_name:
             episode_exists = episode_manager.check_episode_exists(episode_name)
             if episode_exists:
-                st.warning(f"⚠️ Episode '{episode_name}' already exists. Generation will overwrite existing files.")
-                overwrite_confirmed = st.checkbox("✅ I understand and want to overwrite", key="overwrite_confirm")
+                st.warning(f"⚠️ 剧集 '{episode_name}' 已存在，生成将覆盖已有文件。")
+                overwrite_confirmed = st.checkbox("✅ 我已了解并确认覆盖", key="overwrite_confirm")
             else:
                 overwrite_confirmed = True
         else:
@@ -1409,17 +1942,17 @@ def show_generate_podcast_page():
             )
             
             if not content_pieces:
-                st.info("📝 Please add content pieces to generate a podcast")
+                st.info("📝 请先添加内容片段，再开始生成播客")
             elif not has_valid_content:
-                st.error("❌ Content pieces are too short or invalid. Please provide at least 50 characters of meaningful text in at least one piece.")
+                st.error("❌ 内容过短或无效。请至少提供一段 50 字以上的有效文本。")
             elif not episode_name:
-                st.error("❌ Please provide an episode name")
+                st.error("❌ 请填写剧集名称")
             elif not overwrite_confirmed:
-                st.error("❌ Please confirm overwrite to proceed")
+                st.error("❌ 请勾选覆盖确认后继续")
         
         with col2:
             if st.button(
-                "🎬 Generate Podcast", 
+                "🎬 生成播客", 
                 type="primary", 
                 disabled=not can_generate,
                 use_container_width=True
@@ -1439,7 +1972,7 @@ def show_generate_podcast_page():
             status_text = status_container.empty()
             
             try:
-                status_text.text("🚀 Starting podcast generation...")
+                status_text.text("🚀 开始生成播客...")
                 progress_bar.progress(10)
                 
                 # Import podcast creator
@@ -1450,11 +1983,11 @@ def show_generate_podcast_page():
                     podcast_creator_available = True
                 except ImportError:
                     podcast_creator_available = False
-                    st.error("❌ podcast-creator library not available. Please install it first.")
+                    st.error("❌ 未找到 podcast-creator 库，请先安装。")
                     return
                 
                 if podcast_creator_available:
-                    status_text.text("📝 Preparing generation parameters...")
+                    status_text.text("📝 正在准备生成参数...")
                     progress_bar.progress(20)
                     
                     # Prepare parameters
@@ -1462,17 +1995,35 @@ def show_generate_podcast_page():
                         "content": [piece['content'] for piece in content_pieces],
                         "episode_name": episode_name,
                         "output_dir": f"{output_dir}/{episode_name}",
-                        "episode_profile": episode_profile
+                        "episode_profile": episode_profile,
+                        "speaker_config": speaker_config,
                     }
 
                     # Add language if specified
                     if language and language.strip():
                         generation_params["language"] = language.strip()
+
+                    _bgm_label = st.session_state.get("studio_bgm_mode", "关闭")
+                    _bgm_m = _STUDIO_BGM_MODE_BY_LABEL.get(_bgm_label)
+                    _bgm_fp = (st.session_state.get("studio_bgm_path") or "").strip()
+                    if _bgm_m and _bgm_fp:
+                        _p = Path(_bgm_fp).expanduser()
+                        if not _p.is_absolute():
+                            _p = (WORKING_DIR / _p).resolve()
+                        generation_params["bgm_path"] = str(_p)
+                        generation_params["bgm_mode"] = _bgm_m
+                        generation_params["bgm_intro_duration_ms"] = int(
+                            st.session_state.get("studio_bgm_intro_sec", 12) * 1000
+                        )
+                        generation_params["bgm_gain_db"] = float(
+                            st.session_state.get("studio_bgm_gain_db", -20)
+                        )
+                    elif _bgm_m and not _bgm_fp:
+                        st.warning("已选择 BGM 模式但未填写文件路径，将不叠混背景音乐。")
                     
                     # Add overrides if not using defaults
                     if not use_defaults:
                         generation_params.update({
-                            "speaker_config": speaker_config,
                             "outline_model": outline_model,
                             "transcript_model": transcript_model,
                             "num_segments": num_segments,
@@ -1486,7 +2037,7 @@ def show_generate_podcast_page():
                         if st.session_state.custom_briefing != briefing:
                             generation_params["briefing"] = st.session_state.custom_briefing
                     
-                    status_text.text("🎙️ Generating podcast... This may take several minutes...")
+                    status_text.text("🎙️ 正在生成播客，可能需要几分钟...")
                     progress_bar.progress(30)
                     
                     # Generate podcast
@@ -1496,7 +2047,7 @@ def show_generate_podcast_page():
                     result = run_async_in_streamlit(generate)
                     
                     progress_bar.progress(100)
-                    status_text.text("✅ Podcast generation completed!")
+                    status_text.text("✅ 播客生成完成！")
                     
                     # Clear content after successful generation
                     st.session_state.generated_content = ""
@@ -1504,22 +2055,22 @@ def show_generate_podcast_page():
                     st.session_state.content_pieces = []
                     
                     # Show success message
-                    st.success(f"🎉 Podcast '{episode_name}' generated successfully!")
+                    st.success(f"🎉 播客 '{episode_name}' 生成成功！")
                     
                     if 'final_output_file_path' in result:
-                        st.markdown(f"**Audio file:** `{result['final_output_file_path']}`")
+                        st.markdown(f"**音频文件：** `{result['final_output_file_path']}`")
                     
                     # Quick actions
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        if st.button("📚 View in Library", type="primary"):
-                            st.session_state.current_page = "📚 Episode Library"
+                        if st.button("📚 前往剧集库", type="primary"):
+                            _set_current_page("episode_library")
                             st.session_state.navigate_to_library = True
                             st.rerun()
                     
                     with col2:
-                        if st.button("🎬 Generate Another"):
+                        if st.button("🎬 再生成一条"):
                             st.rerun()
                     
                     # Clean up progress indicators
@@ -1541,18 +2092,18 @@ def show_generate_podcast_page():
                 })
                 
                 # Show retry button
-                if st.button("🔄 Retry Generation", type="primary"):
+                if st.button("🔄 重试生成", type="primary"):
                     st.session_state.start_generation = True
                     st.rerun()
     
     except Exception as e:
-        st.error(f"Error loading generation page: {str(e)}")
-        st.markdown("Please check your configuration and try again.")
+        st.error(f"加载生成页面失败：{str(e)}")
+        st.markdown("请检查配置后重试。")
 
 def show_episode_library_page():
     """Display the episode library and playback page."""
-    st.subheader("📚 Episode Library")
-    st.markdown("Browse and play your generated episodes")
+    st.subheader("📚 剧集库")
+    st.markdown("浏览并播放已生成的剧集")
     
     # Initialize episode manager
     episode_manager = EpisodeManager(base_output_dir=WORKING_DIR / "output")
@@ -1562,9 +2113,9 @@ def show_episode_library_page():
         all_episodes = episode_manager.scan_episodes_directory()
         
         if not all_episodes:
-            st.info("📝 No episodes found. Start by generating your first podcast!")
-            if st.button("🎬 Generate Your First Podcast", type="primary"):
-                st.session_state.current_page = "🎬 Generate Podcast"
+            st.info("📝 暂无剧集，先生成你的第一期播客吧！")
+            if st.button("🎬 生成第一期播客", type="primary"):
+                _set_current_page("generate_podcast")
                 st.rerun()
             return
         
@@ -1572,20 +2123,20 @@ def show_episode_library_page():
         col1, col2, col3 = st.columns([2, 1, 1])
         
         with col1:
-            search_query = st.text_input("🔍 Search episodes:", placeholder="Search by name...")
+            search_query = st.text_input("🔍 搜索剧集：", placeholder="按名称搜索...")
         
         with col2:
-            sort_by = st.selectbox("Sort by:", ["Newest", "Oldest", "A-Z", "Duration"])
+            sort_by = st.selectbox("排序方式：", ["最新优先", "最旧优先", "名称 A-Z", "时长"])
         
         with col3:
-            view_mode = st.radio("View:", ["Grid", "List"], horizontal=True)
+            view_mode = st.radio("视图：", ["网格", "列表"], horizontal=True)
         
         # Filter and sort episodes
         filtered_episodes = episode_manager.search_episodes(search_query, all_episodes)
         sorted_episodes = episode_manager.sort_episodes(filtered_episodes, sort_by)
         
         # Show episode count
-        st.markdown(f"**{len(sorted_episodes)} episode(s) found**")
+        st.markdown(f"**共找到 {len(sorted_episodes)} 个剧集**")
         st.markdown("---")
         
         # Handle selected episode for playback
@@ -1594,7 +2145,7 @@ def show_episode_library_page():
         # Episode playback section
         if selected_episode and selected_episode.audio_file:
             with st.container(border=True):
-                st.markdown(f"### 🎵 Now Playing: {selected_episode.name}")
+                st.markdown(f"### 🎵 正在播放：{selected_episode.name}")
                 
                 # Audio player
                 if Path(selected_episode.audio_file).exists():
@@ -1607,52 +2158,57 @@ def show_episode_library_page():
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        if selected_episode.duration:
-                            st.metric("Duration", episode_manager.format_duration(selected_episode.duration))
+                        _playback_dur = selected_episode.duration
+                        if _playback_dur is None and selected_episode.audio_file:
+                            _playback_dur = episode_manager.get_audio_duration(
+                                selected_episode.audio_file
+                            )
+                        if _playback_dur:
+                            st.metric("时长", episode_manager.format_duration(_playback_dur))
                     
                     with col2:
                         if selected_episode.speakers_count:
-                            st.metric("Speakers", selected_episode.speakers_count)
+                            st.metric("说话人数", selected_episode.speakers_count)
                     
                     with col3:
                         if selected_episode.file_size:
-                            st.metric("File Size", episode_manager.format_file_size(selected_episode.file_size))
+                            st.metric("文件大小", episode_manager.format_file_size(selected_episode.file_size))
                     
                     # Action buttons
                     col1, col2, col3, col4 = st.columns(4)
                     
                     with col1:
-                        if st.button("📄 View Transcript", use_container_width=True):
+                        if st.button("📄 查看对话稿", use_container_width=True):
                             st.session_state.show_transcript = True
                             st.rerun()
                     
                     with col2:
-                        if st.button("📊 View Outline", use_container_width=True):
+                        if st.button("📊 查看大纲", use_container_width=True):
                             st.session_state.show_outline = True
                             st.rerun()
                     
                     with col3:
                         # Download button
                         if st.download_button(
-                            label="⬇️ Download",
+                            label="⬇️ 下载",
                             data=audio_bytes,
                             file_name=f"{selected_episode.name}.mp3",
                             mime="audio/mp3",
                             use_container_width=True
                         ):
-                            st.success("📥 Download started!")
+                            st.success("📥 已开始下载")
                     
                     with col4:
-                        if st.button("🗑️ Delete", use_container_width=True):
+                        if st.button("🗑️ 删除", use_container_width=True):
                             st.session_state.confirm_delete = selected_episode.name
                             st.rerun()
                 else:
-                    st.error("❌ Audio file not found")
+                    st.error("❌ 未找到音频文件")
                 
                 # Show transcript
                 if st.session_state.get("show_transcript", False):
                     if selected_episode.transcript_file and Path(selected_episode.transcript_file).exists():
-                        with st.expander("📄 Transcript", expanded=True):
+                        with st.expander("📄 对话稿", expanded=True):
                             try:
                                 with open(selected_episode.transcript_file, 'r', encoding='utf-8') as f:
                                     transcript_data = json.load(f)
@@ -1660,7 +2216,7 @@ def show_episode_library_page():
                                 if isinstance(transcript_data, list):
                                     for i, segment in enumerate(transcript_data):
                                         if isinstance(segment, dict):
-                                            speaker = segment.get('speaker', f'Speaker {i+1}')
+                                            speaker = segment.get('speaker', f'说话人 {i+1}')
                                             # Try multiple possible field names for the text content
                                             text = (segment.get('text') or 
                                                    segment.get('content') or 
@@ -1670,52 +2226,52 @@ def show_episode_library_page():
                                             
                                             # Debug: Show available keys if text is empty
                                             if not text and st.session_state.get('debug_transcript', False):
-                                                st.warning(f"Debug - Segment {i+1} keys: {list(segment.keys())}")
+                                                st.warning(f"调试 - 第 {i+1} 段字段：{list(segment.keys())}")
                                                 st.json(segment)
                                             
                                             if text:
                                                 st.markdown(f"**{speaker}:** {text}")
                                                 st.markdown("---")
                                             else:
-                                                st.markdown(f"**{speaker}:** *[No content found]*")
+                                                st.markdown(f"**{speaker}:** *[未找到内容]*")
                                                 st.markdown("---")
                                 else:
                                     st.text(str(transcript_data))
                                 
                                 # Add debug toggle
-                                if st.checkbox("🐛 Debug Mode - Show Raw Data", key="debug_transcript_toggle"):
+                                if st.checkbox("🐛 调试模式 - 显示原始数据", key="debug_transcript_toggle"):
                                     st.session_state.debug_transcript = True
                                     st.json(transcript_data)
                                 else:
                                     st.session_state.debug_transcript = False
                             except Exception as e:
-                                st.error(f"Error loading transcript: {str(e)}")
+                                st.error(f"加载对话稿失败：{str(e)}")
                             
-                            if st.button("❌ Close Transcript"):
+                            if st.button("❌ 关闭对话稿"):
                                 st.session_state.show_transcript = False
                                 st.rerun()
                     else:
-                        st.error("❌ Transcript file not found")
+                        st.error("❌ 未找到对话稿文件")
                 
                 # Show outline
                 if st.session_state.get("show_outline", False):
                     if selected_episode.outline_file and Path(selected_episode.outline_file).exists():
-                        with st.expander("📊 Outline", expanded=True):
+                        with st.expander("📊 大纲", expanded=True):
                             try:
                                 with open(selected_episode.outline_file, 'r', encoding='utf-8') as f:
                                     outline_data = json.load(f)
                                 st.json(outline_data)
                             except Exception as e:
-                                st.error(f"Error loading outline: {str(e)}")
+                                st.error(f"加载大纲失败：{str(e)}")
                             
-                            if st.button("❌ Close Outline"):
+                            if st.button("❌ 关闭大纲"):
                                 st.session_state.show_outline = False
                                 st.rerun()
                     else:
-                        st.error("❌ Outline file not found")
+                        st.error("❌ 未找到大纲文件")
                 
                 # Stop playback button
-                if st.button("⏹️ Stop Playback"):
+                if st.button("⏹️ 停止播放"):
                     st.session_state.selected_episode = None
                     st.session_state.show_transcript = False
                     st.session_state.show_outline = False
@@ -1727,35 +2283,35 @@ def show_episode_library_page():
         if st.session_state.get("confirm_delete"):
             episode_to_delete = st.session_state.confirm_delete
             
-            st.warning(f"⚠️ Are you sure you want to delete episode '{episode_to_delete}'?")
-            st.markdown("This action cannot be undone and will permanently delete all episode files.")
+            st.warning(f"⚠️ 你确定要删除剧集 '{episode_to_delete}' 吗？")
+            st.markdown("此操作不可撤销，将永久删除该剧集的所有文件。")
             
             col1, col2 = st.columns(2)
             
             with col1:
-                if st.button("✅ Yes, Delete", type="primary"):
+                if st.button("✅ 确认删除", type="primary"):
                     # Find the episode to delete
                     for episode in sorted_episodes:
                         if episode.name == episode_to_delete:
                             if episode_manager.delete_episode(episode.path):
-                                st.success(f"✅ Episode '{episode_to_delete}' deleted successfully")
+                                st.success(f"✅ 剧集 '{episode_to_delete}' 已删除")
                                 if st.session_state.get("selected_episode") and st.session_state.selected_episode.name == episode_to_delete:
                                     st.session_state.selected_episode = None
                                 st.session_state.confirm_delete = None
                                 st.rerun()
                             else:
-                                st.error("❌ Failed to delete episode")
+                                st.error("❌ 删除剧集失败")
                             break
             
             with col2:
-                if st.button("❌ Cancel"):
+                if st.button("❌ 取消"):
                     st.session_state.confirm_delete = None
                     st.rerun()
             
             st.markdown("---")
         
         # Display episodes
-        if view_mode == "Grid":
+        if view_mode == "网格":
             # Grid view
             cols = st.columns(3)
             
@@ -1765,32 +2321,32 @@ def show_episode_library_page():
                         st.markdown(f"### 🎙️ {episode.name}")
                         
                         if episode.created_date:
-                            st.markdown(f"**Created:** {episode.created_date.strftime('%Y-%m-%d %H:%M')}")
+                            st.markdown(f"**创建时间：** {episode.created_date.strftime('%Y-%m-%d %H:%M')}")
                         
                         if episode.duration:
-                            st.markdown(f"**Duration:** {episode_manager.format_duration(episode.duration)}")
+                            st.markdown(f"**时长：** {episode_manager.format_duration(episode.duration)}")
                         
                         if episode.speakers_count:
-                            st.markdown(f"**Speakers:** {episode.speakers_count}")
+                            st.markdown(f"**说话人数：** {episode.speakers_count}")
                         
                         if episode.profile_used:
-                            st.markdown(f"**Profile:** {episode.profile_used}")
+                            st.markdown(f"**配置：** {episode.profile_used}")
                         
                         # Action buttons
-                        if episode.audio_file and st.button("▶️ Play", key=f"play_grid_{i}", use_container_width=True):
+                        if episode.audio_file and st.button("▶️ 播放", key=f"play_grid_{i}", use_container_width=True):
                             st.session_state.selected_episode = episode
                             st.rerun()
                         
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            if episode.transcript_file and st.button("📄", key=f"transcript_grid_{i}", help="View Transcript"):
+                            if episode.transcript_file and st.button("📄", key=f"transcript_grid_{i}", help="查看对话稿"):
                                 st.session_state.selected_episode = episode
                                 st.session_state.show_transcript = True
                                 st.rerun()
                         
                         with col2:
-                            if st.button("🗑️", key=f"delete_grid_{i}", help="Delete Episode"):
+                            if st.button("🗑️", key=f"delete_grid_{i}", help="删除剧集"):
                                 st.session_state.confirm_delete = episode.name
                                 st.rerun()
         
@@ -1803,60 +2359,65 @@ def show_episode_library_page():
                     with col1:
                         st.markdown(f"### 🎙️ {episode.name}")
                         if episode.created_date:
-                            st.markdown(f"*Created: {episode.created_date.strftime('%Y-%m-%d %H:%M')}*")
+                            st.markdown(f"*创建时间：{episode.created_date.strftime('%Y-%m-%d %H:%M')}*")
                     
                     with col2:
                         info_lines = []
                         if episode.duration:
-                            info_lines.append(f"Duration: {episode_manager.format_duration(episode.duration)}")
+                            info_lines.append(f"时长：{episode_manager.format_duration(episode.duration)}")
                         if episode.speakers_count:
-                            info_lines.append(f"Speakers: {episode.speakers_count}")
+                            info_lines.append(f"说话人数：{episode.speakers_count}")
                         if episode.profile_used:
-                            info_lines.append(f"Profile: {episode.profile_used}")
+                            info_lines.append(f"配置：{episode.profile_used}")
                         
                         for line in info_lines:
                             st.markdown(line)
                     
                     with col3:
-                        if episode.audio_file and st.button("▶️ Play", key=f"play_list_{i}"):
+                        if episode.audio_file and st.button("▶️ 播放", key=f"play_list_{i}"):
                             st.session_state.selected_episode = episode
                             st.rerun()
                         
-                        if episode.transcript_file and st.button("📄 Transcript", key=f"transcript_list_{i}"):
+                        if episode.transcript_file and st.button("📄 对话稿", key=f"transcript_list_{i}"):
                             st.session_state.selected_episode = episode
                             st.session_state.show_transcript = True
                             st.rerun()
                         
-                        if st.button("🗑️ Delete", key=f"delete_list_{i}"):
+                        if st.button("🗑️ 删除", key=f"delete_list_{i}"):
                             st.session_state.confirm_delete = episode.name
                             st.rerun()
         
         # Library statistics
         if sorted_episodes:
-            with st.expander("📊 Library Statistics", expanded=False):
+            with st.expander("📊 剧集库统计", expanded=False):
+                st.caption(
+                    "列表默认不批量读时长；"
+                    "单集详情用 ffprobe → mutagen → pydub 取时长（ffprobe 需 FFmpeg；mutagen 在安装 ui 额外依赖时可用）。"
+                    "快速扫描下总时长/平均时长常为 0。"
+                )
                 stats = episode_manager.get_episodes_stats()
                 
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    st.metric("Total Episodes", stats['total_episodes'])
+                    st.metric("剧集总数", stats['total_episodes'])
                 
                 with col2:
                     if stats['total_duration'] > 0:
                         total_hours = stats['total_duration'] / 3600
-                        st.metric("Total Duration", f"{total_hours:.1f} hours")
+                        st.metric("总时长", f"{total_hours:.1f} 小时")
                 
                 with col3:
                     if stats['average_duration'] > 0:
-                        st.metric("Average Duration", episode_manager.format_duration(stats['average_duration']))
+                        st.metric("平均时长", episode_manager.format_duration(stats['average_duration']))
                 
                 with col4:
                     if stats['total_size'] > 0:
-                        st.metric("Total Size", episode_manager.format_file_size(stats['total_size']))
+                        st.metric("总大小", episode_manager.format_file_size(stats['total_size']))
     
     except Exception as e:
-        st.error(f"Error loading episode library: {str(e)}")
-        st.markdown("Please check your output directory and try again.")
+        st.error(f"加载剧集库失败：{str(e)}")
+        st.markdown("请检查输出目录后重试。")
 
 if __name__ == "__main__":
     main()
