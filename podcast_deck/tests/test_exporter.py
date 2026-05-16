@@ -97,3 +97,41 @@ def test_export_deck_with_audio_and_timeline(tmp_path) -> None:
     assert "narration.mp3" in content
     assert "const cues =" in content
     assert "aria-live" in content
+
+
+def test_export_deck_timeline_json_escapes_script_context(tmp_path) -> None:
+    payload = _sample_payload()
+    payload["slides"][0]["id"] = "s1</script><img src=x onerror=alert(1)>"
+    input_file = tmp_path / "outline.json"
+    output_file = tmp_path / "deck.audio.html"
+    input_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    cues = [
+        SlideCue(slide_id=payload["slides"][0]["id"], start_sec=0.0, end_sec=2.0),
+        SlideCue(slide_id="s2", start_sec=2.0, end_sec=4.0),
+    ]
+
+    export_deck(
+        input_path=input_file,
+        output_path=output_file,
+        options=DeckBuildOptions(audio_src="narration.mp3", timeline_cues=cues),
+    )
+    content = output_file.read_text(encoding="utf-8")
+    assert "\\u003C/script\\u003E" in content
+
+
+@pytest.mark.parametrize(
+    "duration_hint",
+    [True, -0.1, float("nan"), float("inf")],
+)
+def test_parse_deck_rejects_invalid_duration_hint(duration_hint) -> None:
+    payload = _sample_payload()
+    payload["slides"][0]["durationHintSec"] = duration_hint
+    with pytest.raises(DeckSchemaError):
+        parse_deck(payload)
+
+
+def test_parse_deck_rejects_bool_transition_budget() -> None:
+    payload = _sample_payload()
+    payload["slides"][0]["transitionBudgetMs"] = False
+    with pytest.raises(DeckSchemaError):
+        parse_deck(payload)

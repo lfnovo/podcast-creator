@@ -71,16 +71,24 @@ def allocate_cues(
             for i in free_indexes:
                 raw[i] = remaining * (raw[i] / free_sum)
 
-    # Numeric stability: keep exact total by adjusting tail.
+    # Numeric stability: normalize to exact total duration.
     total_now = sum(raw)
     if raw and total_now > 0:
-        raw[-1] += duration - total_now
-        raw[-1] = max(0.0, raw[-1])
+        scale = duration / total_now
+        raw = [max(0.0, item * scale) for item in raw]
+    elif raw:
+        even = duration / len(raw)
+        raw = [even for _ in raw]
+
+    # Keep tail exact to avoid floating-point drift.
+    if raw:
+        drift = duration - sum(raw)
+        raw[-1] = max(0.0, raw[-1] + drift)
 
     cues: list[SlideCue] = []
     start = 0.0
     for i, slide in enumerate(slide_list):
-        end = start + raw[i]
+        end = min(duration, start + raw[i])
         if i == len(slide_list) - 1:
             end = duration
         cues.append(

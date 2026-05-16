@@ -65,12 +65,12 @@ def align_with_srt_or_fallback(
     intervals = parse_srt_intervals(srt_path)
     if not intervals:
         return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
+    if len(intervals) < len(slide_ids):
+        return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
 
     # Map intervals to slides by index; overflow intervals are ignored.
     cues: list[SlideCue] = []
     for idx, slide_id in enumerate(slide_ids):
-        if idx >= len(intervals):
-            break
         start, end = intervals[idx]
         cues.append(SlideCue(slide_id=slide_id, start_sec=start, end_sec=end))
 

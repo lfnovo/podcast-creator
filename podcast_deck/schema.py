@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from typing import Any
 
 
@@ -66,18 +67,32 @@ def _as_non_empty_str(value: Any, *, field_name: str) -> str:
 def _as_optional_number(value: Any, *, field_name: str) -> float | None:
     if value is None:
         return None
+    if isinstance(value, bool):
+        raise DeckSchemaError(f"`{field_name}` must be a number when provided")
     if isinstance(value, (int, float)):
-        return float(value)
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            raise DeckSchemaError(f"`{field_name}` must be a finite number")
+        if parsed < 0:
+            raise DeckSchemaError(f"`{field_name}` must be >= 0")
+        return parsed
     raise DeckSchemaError(f"`{field_name}` must be a number when provided")
 
 
 def _as_optional_int(value: Any, *, field_name: str, default: int = 0) -> int:
     if value is None:
         return default
+    if isinstance(value, bool):
+        raise DeckSchemaError(f"`{field_name}` must be an integer when provided")
     if isinstance(value, int):
+        if value < 0:
+            raise DeckSchemaError(f"`{field_name}` must be >= 0")
         return value
     if isinstance(value, float) and value.is_integer():
-        return int(value)
+        parsed = int(value)
+        if parsed < 0:
+            raise DeckSchemaError(f"`{field_name}` must be >= 0")
+        return parsed
     raise DeckSchemaError(f"`{field_name}` must be an integer when provided")
 
 

@@ -16,4 +16,4 @@ Canonical user-facing documentation lives in the **repository root [README.md](.
 | Changelog | [CHANGELOG.md](../CHANGELOG.md) |
 | Contributor / dev commands | [CONTRIBUTING.md](../CONTRIBUTING.md), [CLAUDE.md](../CLAUDE.md) |
 
-Agent implementers: MCP entry point is **`podcast_creator.mcp_server`** (`FastMCP` stdio); graph hook for BGM is **`combine_audio`** after concat, before **loudnorm** — see **CLAUDE.md**.
+Agent implementers: for MCP entrypoints and graph/BGM hook details, use **CLAUDE.md** as the source of truth.

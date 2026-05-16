@@ -214,6 +214,14 @@ def _build_timeline_js(cues: list[SlideCue]) -> str:
         for cue in cues
     ]
     cues_json = json.dumps(payload, ensure_ascii=False)
+    # Prevent inline-script breakouts such as "</script>" in untrusted content.
+    cues_json = (
+        cues_json.replace("<", "\\u003C")
+        .replace(">", "\\u003E")
+        .replace("&", "\\u0026")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
     return f"""
 (function () {{
   const audio = document.getElementById('deck-audio');

@@ -36,3 +36,28 @@ def test_align_with_srt_or_fallback_uses_fallback_when_missing() -> None:
     result = align_with_srt_or_fallback(["s1", "s2"], fallback, srt_path=None)
     assert result.method == "fallback_timeline"
     assert result.cues == fallback
+
+
+def test_align_with_srt_or_fallback_uses_fallback_when_srt_partial(
+    tmp_path: Path,
+) -> None:
+    fallback = [
+        SlideCue(slide_id="s1", start_sec=0.0, end_sec=1.0),
+        SlideCue(slide_id="s2", start_sec=1.0, end_sec=2.0),
+        SlideCue(slide_id="s3", start_sec=2.0, end_sec=3.0),
+    ]
+    srt = tmp_path / "partial.srt"
+    srt.write_text(
+        "\n".join(
+            [
+                "1",
+                "00:00:00,000 --> 00:00:01,500",
+                "only one interval",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = align_with_srt_or_fallback(["s1", "s2", "s3"], fallback, srt_path=srt)
+    assert result.method == "fallback_timeline"
+    assert result.cues == fallback

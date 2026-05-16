@@ -13,6 +13,20 @@ from .narration import generate_narration
 from .schema import DeckSchemaError, parse_deck
 
 
+def _normalize_audio_src_for_html(audio_path: Path, html_parent: Path) -> str:
+    """
+    Build HTML-safe audio src.
+
+    Prefer relative path for portability; if relative mapping is not possible
+    (e.g., Windows cross-drive), fall back to file URI.
+    """
+    try:
+        rel = os.path.relpath(audio_path.resolve(), html_parent.resolve())
+        return rel.replace("\\", "/")
+    except ValueError:
+        return audio_path.resolve().as_uri()
+
+
 @click.group()
 def cli() -> None:
     """Podcast deck tools."""
@@ -108,7 +122,7 @@ def export_cmd(
 @click.option(
     "--speaking-rate",
     default=1.0,
-    type=float,
+    type=click.FloatRange(min=0.0, min_open=True),
     show_default=True,
     help="Speaking rate multiplier for TTS.",
 )
@@ -160,14 +174,14 @@ def narrate_cmd(
         )
 
         output_html.parent.mkdir(parents=True, exist_ok=True)
-        audio_rel = os.path.relpath(
-            artifacts.audio_path.resolve(), output_html.parent.resolve()
+        audio_src = _normalize_audio_src_for_html(
+            artifacts.audio_path, output_html.parent
         )
         result = export_deck(
             input_path=artifacts.updated_json_path,
             output_path=output_html,
             options=DeckBuildOptions(
-                audio_src=audio_rel,
+                audio_src=audio_src,
                 timeline_cues=artifacts.cues,
                 audio_autoplay=audio_autoplay,
             ),
