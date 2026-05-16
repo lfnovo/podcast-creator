@@ -167,3 +167,51 @@ flowchart TD
 - `Video Pipeline`：P3-S1/S2/S3/S4/S5
 
 > 若团队人力有限，优先保证关键路径角色稳定（Schema/Export、Timeline、Video Pipeline）。
+
+---
+
+## 9) 当前执行进展（实时）
+
+### 9.1 已完成（P1 + P2）
+
+- P1-S1 ~ P1-S6：已完成（CLI 骨架、Schema、单文件导出、交互打印、debug/release 门控、Streamlit 集成）。
+- P2-S1 ~ P2-S5：已完成（分页 TTS、对齐适配层、时间切片、自动翻页与 `aria-live`、音频嵌入与时长回填）。
+- 单测：`uv run pytest podcast_deck/tests -q` 已通过（当前 `42 passed`）。
+
+### 9.1.1 P3 当前进展（进行中）
+
+- ✅ P3-S1 已完成：实现 `capture-frames` 管线（静态页图 + 停留帧 + 转场帧 + `frame_manifest.json`）。
+- ✅ P3-S2 已完成：实现 `render-video`（基于 ffmpeg 将帧序列编码为 MP4）。
+- ✅ P3-S3 已完成：实现字幕叠层（优先 `subtitles`，回退 `drawtext`，并在双过滤器缺失时降级无字幕继续渲染）。
+- ✅ P3-S4 已完成：实现音频 mux（`--audio`、`--audio-codec`、`--audio-bitrate`、`--audio-shortest`）。
+- ✅ P3-S5 已完成：实现一键流水线 `synth-video`（`capture-frames + render-video`）。
+- ✅ P3-S6 已完成：文档收口（README 与 Epic 执行文档同步 `synth-video`、字幕回退策略、workspace 清理策略）。
+- ✅ P3 本地 E2E 样例已通过：
+  - `uv run python -m podcast_deck capture-frames --input output/decks/p3-e2e/deck.json --workspace output/decks/p3-e2e/workspace --fps 10 --hold-sec 1.0 --transition-sec 0.5`
+  - `uv run python -m podcast_deck render-video --workspace output/decks/p3-e2e/workspace --output-mp4 output/decks/p3-e2e/workspace/deck.subtitle.audio.mp4 --fps 10 --crf 20 --preset veryfast --subtitle-mode burn --audio output/decks/p3-e2e/workspace/narration.test.wav`
+  - `uv run python -m podcast_deck synth-video --input output/decks/p3-e2e/deck.json --workspace output/decks/p3-e2e/synth-workspace --fps 10 --hold-sec 1.0 --transition-sec 0.5 --subtitle-mode burn --audio output/decks/p3-e2e/workspace/narration.test.wav --output-mp4 output/decks/p3-e2e/synth-workspace/deck.synth.mp4 --crf 20 --preset veryfast`
+  - `uv run python -m podcast_deck synth-video --input output/decks/p3-e2e/deck.json --workspace output/decks/p3-e2e/synth-clean-workspace --fps 10 --hold-sec 1.0 --transition-sec 0.5 --subtitle-mode burn --audio output/decks/p3-e2e/workspace/narration.test.wav --output-mp4 output/decks/p3-e2e/synth-clean-workspace/deck.synth.clean.mp4 --crf 20 --preset veryfast --clean-workspace`
+  - 产物：
+    - `output/decks/p3-e2e/workspace/deck.subtitle.audio.mp4`
+    - `output/decks/p3-e2e/synth-workspace/deck.synth.mp4`
+    - `output/decks/p3-e2e/synth-clean-workspace/deck.synth.clean.mp4`（目录仅保留最终 MP4）
+
+### 9.2 P2 端到端真实样例验证（已通过）
+
+- 输入样例：`output/decks/p2-e2e/deck.json`
+- 执行命令：
+  - `uv run python -m podcast_deck narrate --input output/decks/p2-e2e/deck.json --output-html output/decks/p2-e2e/deck.narrated.html --workspace output/decks/p2-e2e/workspace --tts-provider edge_tts --tts-model edge-1 --voice zh-CN-XiaoxiaoNeural --timeline-strategy weighted_chars`
+- 结果：
+  - `✅ Narrated deck exported: output/decks/p2-e2e/deck.narrated.html`
+  - `🎧 Narration audio: output/decks/p2-e2e/workspace/narration.mp3`
+  - `🕒 Alignment method: fallback_timeline, cues: 3`
+  - `📝 Backfilled JSON: output/decks/p2-e2e/workspace/deck.with_duration.json`
+- 产物检查：
+  - HTML 存在，包含 `id="deck-audio"` 与时间轴脚本 `const cues =`
+  - 音频文件存在（`narration.mp3`）
+  - `durationHintSec` 已回填（`[4.011, 6.37, 3.539]`）
+
+### 9.3 当前待办（发布闭环）
+
+- 推送分支：`feat/deck-mvp-export-integration` 到 `origin`（需先完成本机 GitHub 认证）。
+- 创建 PR（包含 P1 + P2 + P3），并在 Test plan 中保留上述 E2E 记录。
