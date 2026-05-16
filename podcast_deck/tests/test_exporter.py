@@ -6,6 +6,7 @@ import pytest
 
 from podcast_deck.exporter import DECK_DEBUG_MARKERS, DeckBuildOptions, export_deck
 from podcast_deck.schema import DeckSchemaError, parse_deck
+from podcast_deck.timeline import SlideCue
 
 
 def _sample_payload() -> dict:
@@ -70,3 +71,29 @@ def test_export_deck_with_debug_script_includes_markers(tmp_path) -> None:
     content = output_file.read_text(encoding="utf-8")
     for marker in DECK_DEBUG_MARKERS:
         assert marker in content
+
+
+def test_export_deck_with_audio_and_timeline(tmp_path) -> None:
+    input_file = tmp_path / "outline.json"
+    output_file = tmp_path / "deck.audio.html"
+    input_file.write_text(
+        json.dumps(_sample_payload(), ensure_ascii=False), encoding="utf-8"
+    )
+    cues = [
+        SlideCue(slide_id="s1", start_sec=0.0, end_sec=2.0),
+        SlideCue(slide_id="s2", start_sec=2.0, end_sec=4.0),
+    ]
+    export_deck(
+        input_path=input_file,
+        output_path=output_file,
+        options=DeckBuildOptions(
+            audio_src="narration.mp3",
+            timeline_cues=cues,
+            audio_autoplay=True,
+        ),
+    )
+    content = output_file.read_text(encoding="utf-8")
+    assert "id=\"deck-audio\"" in content
+    assert "narration.mp3" in content
+    assert "const cues =" in content
+    assert "aria-live" in content

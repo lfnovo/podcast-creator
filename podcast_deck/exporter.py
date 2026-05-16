@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from .schema import DeckDocument, DeckSlide, parse_deck
+from .timeline import SlideCue
 
 DEFAULT_TOKENS_CSS = """
 :root {
@@ -187,6 +188,9 @@ class DeckBuildOptions:
     debug_script_enabled: bool = False
     aspect_ratio: str = "16:9"
     title_fallback: str = "Podcast Deck"
+    audio_src: str | None = None
+    timeline_cues: list[SlideCue] | None = None
+    audio_autoplay: bool = False
 
 
 def _read_json_file(path: Path) -> dict:
@@ -204,14 +208,70 @@ def _render_slide(slide: DeckSlide, index: int) -> str:
     )
 
 
+def _build_timeline_js(cues: list[SlideCue]) -> str:
+    payload = [
+        {"slideId": cue.slide_id, "startSec": cue.start_sec, "endSec": cue.end_sec}
+        for cue in cues
+    ]
+    cues_json = json.dumps(payload, ensure_ascii=False)
+    return f"""
+(function () {{
+  const audio = document.getElementById('deck-audio');
+  if (!audio) return;
+  const cues = {cues_json};
+  if (!Array.isArray(cues) || cues.length === 0) return;
+
+  const slideNodes = Array.from(document.querySelectorAll('.deck-slide'));
+  const progress = document.getElementById('deck-progress');
+  function activateBySlideId(slideId) {{
+    let activeIndex = 0;
+    slideNodes.forEach((node, idx) => {{
+      const isActive = node.getAttribute('data-slide-id') === slideId;
+      if (isActive) activeIndex = idx;
+      node.classList.toggle('is-active', isActive);
+      node.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+    }});
+    if (progress) {{
+      progress.textContent = `${{activeIndex + 1}} / ${{slideNodes.length}}`;
+      progress.setAttribute('aria-live', 'polite');
+    }}
+  }}
+
+  function onTimeUpdate() {{
+    const t = Number(audio.currentTime || 0);
+    for (const cue of cues) {{
+      if (t >= cue.startSec && t < cue.endSec + 0.001) {{
+        activateBySlideId(cue.slideId);
+        return;
+      }}
+    }}
+  }}
+
+  audio.addEventListener('timeupdate', onTimeUpdate);
+}})();
+""".strip()
+
+
 def _build_html(document: DeckDocument, options: DeckBuildOptions) -> str:
     slide_markup = "\n".join(
         _render_slide(slide, index) for index, slide in enumerate(document.slides)
     )
     runtime_js = DEFAULT_RUNTIME_JS
     debug_js = DEFAULT_DEBUG_JS if options.debug_script_enabled else ""
+    timeline_js = (
+        _build_timeline_js(options.timeline_cues)
+        if options.timeline_cues
+        else ""
+    )
     title = document.meta.title or options.title_fallback
     aspect_style = "16 / 9" if options.aspect_ratio == "16:9" else "4 / 3"
+    audio_markup = ""
+    if options.audio_src:
+        audio_markup = (
+            f"<audio id=\"deck-audio\" controls "
+            f"{'autoplay' if options.audio_autoplay else ''} "
+            f"src=\"{html.escape(options.audio_src)}\"></audio>"
+        )
 
     return f"""<!doctype html>
 <html lang="{html.escape(document.meta.lang)}">
@@ -231,7 +291,9 @@ def _build_html(document: DeckDocument, options: DeckBuildOptions) -> str:
       <div id="deck-progress" class="deck-progress">1 / {len(document.slides)}</div>
     </div>
   </main>
+  {audio_markup}
   <script>{runtime_js}</script>
+  {"<script>" + timeline_js + "</script>" if timeline_js else ""}
   {"<script>" + debug_js + "</script>" if debug_js else ""}
 </body>
 </html>
