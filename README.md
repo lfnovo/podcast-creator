@@ -27,6 +27,9 @@ uv add podcast-creator --extra ui
 git clone <repository-url>
 cd podcast-creator
 uv sync
+# Web UI（Streamlit）需要可选依赖：
+uv sync --extra ui
+# MCP 服务器（Cursor 等）：pip install -e '.[mcp]' 或 uv sync --extra mcp
 
 # Don't have uv? Install it with:
 # curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -37,6 +40,86 @@ uv sync
 **Installation Options:**
 - **Library only**: `pip install podcast-creator` - For programmatic use without web interface
 - **With UI**: `pip install podcast-creator[ui]` - Includes Streamlit web interface for visual management
+- **MCP (Cursor / Claude Desktop / other MCP hosts)**: `pip install podcast-creator[mcp]` — exposes stdio tools `podcast_solo`, `podcast_duo`, `podcast_trio` (see [MCP server](#mcp-server-cursor--claude-desktop) below)
+- **Doc index** ([`docs/README.md`](docs/README.md)): quick links to MCP, BGM, Streamlit README, changelog
+
+### MCP server (Cursor / Claude Desktop)
+
+Install the extra, then register a **stdio** server that runs `podcast-creator-mcp`:
+
+```bash
+uv add 'podcast-creator[mcp]'
+# or: pip install 'podcast-creator[mcp]'
+```
+
+**Cursor** (`~/.cursor/mcp.json` or project MCP settings): use your interpreter and ensure `podcast-creator` is on that environment’s `PYTHONPATH` if you develop from source.
+
+```json
+{
+  "mcpServers": {
+    "podcast-creator": {
+      "command": "podcast-creator-mcp",
+      "env": {}
+    }
+  }
+}
+```
+
+If the `podcast-creator-mcp` script is not on `PATH`, call the module instead:
+
+```json
+{
+  "mcpServers": {
+    "podcast-creator": {
+      "command": "python",
+      "args": ["-m", "podcast_creator.mcp_server"]
+    }
+  }
+}
+```
+
+**Tools**
+
+| Tool | Episode profile | Use case |
+|------|-----------------|----------|
+| `podcast_solo` | `solo_expert` | Single-speaker explainer (default providers in bundled profile) |
+| `podcast_duo` | `zh_duo_local` or `zh_duo_news_local` | Two-host Chinese; set `duo_style` to `talk` or `news` |
+| `podcast_trio` | `zh_trio_local` | Three-host Chinese panel |
+
+Optional **`project_root`**: directory containing `episodes_config.json` and `speakers_config.json` when you use custom profiles. Optional **BGM** uses the same parameters as in [Background music (BGM)](#background-music-bgm).
+
+**macOS + local `uv sync`:** If `podcast-creator ui` fails with `ModuleNotFoundError: No module named 'podcast_creator'`, either editable-install `.pth` files under `.venv/` are missing, **or** they carry the filesystem **hidden** flag (Python 3.11+ skips those and never adds `src/`). **Run from the repo root** (`cd` into `podcast-creator/`), then:
+
+```bash
+python3 scripts/fix_venv_pth_macos.py
+```
+
+This script **writes** `podcast_creator_repo_src.pth` so **`src/` is prepended to `sys.path`** (via an `import`-style `.pth` line), which avoids a partial **`site-packages/podcast_creator`** shadowing the real package. On macOS it also clears the hidden flag on all `*.pth` files. Alternatively:
+
+```bash
+find .venv -name '*.pth' -exec chflags nohidden {} +
+```
+
+Verify with `ls -lO .venv/lib/python*/site-packages/_editable*.pth` — the flags column should show `-`, not `hidden`.
+
+**Finder 重复 `.pth`（例如 `distutils-precedence 2.pth`）**：会在启动时执行失败并刷屏 `Error processing line 1 of … _distutils_hack … add_shim`。删掉 `site-packages` 里带 **` 2`** 的那份重复文件（保留无空格的那份），然后重装/修复 `setuptools` 若仍异常。
+
+**损坏的 PyTorch**：若仅在运行 **生成播客**（需要 `esperanto` → `torch`）时崩溃，可尝试在同一 venv 内 `uv pip install --reinstall torch` 或新建干净 venv。
+
+**Workaround without fixing `.pth`:** from repo root,
+
+```bash
+PYTHONPATH=src uv run python -m podcast_creator ui
+```
+
+Alternatively install a normal (non-editable) wheel: `uv pip install '.[ui]'` (adjust extras as needed).
+
+**Broken Streamlit** (`No module named streamlit.__main__` / “package … cannot be directly executed”): the `streamlit` install under `.venv` may be incomplete—often after an interrupted sync or duplicate trees in `site-packages` (e.g. files ending in ` 2` from Finder). Reinstall:
+
+```bash
+uv sync --extra ui --reinstall-package streamlit
+# or: pip uninstall -y streamlit && pip install 'streamlit>=1.44.0'
+```
 
 ### Configure API Keys
 
@@ -142,6 +225,37 @@ Episode Profiles are **pre-configured sets of podcast generation parameters** th
 | `solo_expert` | Educational explanations | 1 expert teacher | 3 | Learning content, tutorials |
 | `business_analysis` | Market and business insights | 3 business analysts | 4 | Business strategy, market analysis |
 | `diverse_panel` | Multi-perspective discussions | 4 diverse voices | 5 | Complex topics, debate-style content |
+| `zh_duo_local` | Chinese two-host dialogue (casual talk) | 2 (主持人 / 嘉宾) | 4 | Local Ollama + Edge TTS; see bundled configs |
+| `zh_duo_news_local` | Chinese two-host, news-style tone | 2 (主持人 / 嘉宾) | 4 | Same stack, stricter news briefing |
+| `zh_trio_local` | Chinese three-person panel | 3 (主持人 / 乐观派 / 审慎派) | 5 | Roundtable / debate-style |
+
+### Background music (BGM)
+
+After all voice clips are concatenated, you can mix in a **background music** track before final **loudness normalization** (`loudnorm`):
+
+| Parameter | Meaning |
+|-----------|---------|
+| `bgm_path` | Path to an audio file (e.g. MP3/WAV) readable by pydub/ffmpeg |
+| `bgm_mode` | `intro` — BGM only under the opening segment (news-style bed); `full` — BGM under the entire episode |
+| `bgm_intro_duration_ms` | Length of the intro BGM window when `bgm_mode=intro` (default in code: 12000) |
+| `bgm_gain_db` | Attenuation applied to BGM before mixing (typical −12 to −24; default −20) |
+
+Set these on **`create_podcast()`**, on an **`EpisodeProfile`** in `episodes_config.json`, or (Streamlit) in the generation step’s **optional BGM** fold. Output folder **`metadata.json`** records a `bgm` object when used.
+
+```python
+result = await create_podcast(
+    content="Your script or source text...",
+    episode_profile="zh_duo_local",
+    episode_name="episode_with_bed",
+    output_dir="output/episode_with_bed",
+    bgm_path="/path/to/news-bed.mp3",
+    bgm_mode="intro",
+    bgm_intro_duration_ms=15000,
+    bgm_gain_db=-18.0,
+)
+```
+
+(requires `ffmpeg` in `PATH` for loudnorm and mix steps, as for normal exports)
 
 ### 🎪 **Usage Patterns**
 
@@ -246,6 +360,8 @@ configure("speakers_config", {
 - **🎵 Multi-Provider TTS**: ElevenLabs, OpenAI, Google TTS support
 - **📝 Flexible Templates**: Jinja2-based prompt customization
 - **🌍 Multilingual Support**: Generate content in multiple languages
+- **🎵 Background music**: Optional intro-only or full-episode BGM mix on the final MP3 (`bgm_path`, `bgm_mode`, …); see [Background music (BGM)](#background-music-bgm)
+- **🔌 MCP tools**: Optional `podcast-creator[mcp]` stdio server for `podcast_solo` / `podcast_duo` / `podcast_trio` — [MCP server](#mcp-server-cursor--claude-desktop)
 - **📚 Episode Library**: Built-in audio playback and transcript viewing
 
 ## 🏗️ Architecture
@@ -534,6 +650,51 @@ In this example, Dr. Sarah Chen uses ElevenLabs while Marcus Rivera uses the pro
 - **OpenAI TTS**: High-quality voices
 - **Google**: Google Cloud TTS
 - **Vertex AI**: Google Cloud enterprise
+- **Piper**: Local offline TTS (via `piper` binary)
+- **Coqui TTS**: Local Python-based TTS (`coqui-tts`)
+
+### Local TTS and Fallback
+
+You can now route TTS through a provider abstraction and configure fallback in `tts_config`.
+
+```json
+{
+  "profiles": {
+    "local_first": {
+      "tts_provider": "coqui",
+      "tts_model": "tts_models/en/ljspeech/tacotron2-DDC",
+      "tts_config": {
+        "gpu": false,
+        "fallback_provider": "piper",
+        "fallback_model": "zh_CN-huayan-medium.onnx",
+        "fallback_config": {
+          "piper_bin": "piper",
+          "model_path": "zh_CN-huayan-medium.onnx"
+        }
+      },
+      "speakers": [
+        {
+          "name": "Host",
+          "voice_id": "alloy",
+          "backstory": "Generalist host",
+          "personality": "Warm and concise"
+        }
+      ]
+    }
+  }
+}
+```
+
+`none` provider is also supported for script-only workflows (no audio generation).
+
+### 多人中文对话（Edge TTS）
+
+仓库内已预置：
+
+- **说话人**：`speakers_config.json` 中 `zh_duo_talk_edge`（2 人：主持人 / 嘉宾）、`zh_duo_news_edge`（双人新闻串联语感，与 `zh_hq_news_edge` 相同的 `rate`/`pitch`/`volume`，主持人 Yunjian + 嘉宾 Xiaoxiao）、`zh_trio_panel_edge`（3 人圆桌）。
+- **剧集**：`episodes_config.json` 中 `zh_duo_local`、`zh_duo_news_local`（新闻感双人）、`zh_trio_local`，已写好要求 LLM **严格使用上述姓名** 生成对白的 `default_briefing`。
+
+使用方式：生成时选择对应 **剧集 profile**（或通过 API `episode_profile="zh_duo_local"` 等）。每位说话人使用不同 `voice_id`（Edge 神经音色名），合成时按角色自动选声线。
 
 ## 📁 Output Structure
 
@@ -575,6 +736,52 @@ podcast-creator version
 ```
 
 **Note**: The `ui` command requires the UI installation: `pip install podcast-creator[ui]`
+
+### Deck-AV CLI (`podcast_deck`)
+
+The repository also includes a deck/video pipeline CLI under `podcast_deck`:
+
+```bash
+# Step-by-step: capture frames
+uv run python -m podcast_deck capture-frames \
+  --input output/decks/p3-e2e/deck.json \
+  --workspace output/decks/p3-e2e/workspace \
+  --fps 10 --hold-sec 1.0 --transition-sec 0.5
+
+# Step-by-step: render video (optional subtitle/audio)
+uv run python -m podcast_deck render-video \
+  --workspace output/decks/p3-e2e/workspace \
+  --output-mp4 output/decks/p3-e2e/workspace/deck.final.mp4 \
+  --subtitle-mode burn \
+  --audio output/decks/p3-e2e/workspace/narration.test.wav
+
+# One-shot pipeline: capture + render
+uv run python -m podcast_deck synth-video \
+  --input output/decks/p3-e2e/deck.json \
+  --workspace output/decks/p3-e2e/synth-workspace \
+  --fps 10 --hold-sec 1.0 --transition-sec 0.5 \
+  --subtitle-mode burn \
+  --audio output/decks/p3-e2e/workspace/narration.test.wav \
+  --output-mp4 output/decks/p3-e2e/synth-workspace/deck.synth.mp4
+
+# One-shot pipeline + cleanup intermediates
+uv run python -m podcast_deck synth-video \
+  --input output/decks/p3-e2e/deck.json \
+  --workspace output/decks/p3-e2e/synth-clean-workspace \
+  --subtitle-mode burn \
+  --audio output/decks/p3-e2e/workspace/narration.test.wav \
+  --output-mp4 output/decks/p3-e2e/synth-clean-workspace/deck.synth.clean.mp4 \
+  --clean-workspace
+```
+
+`render-video` / `synth-video` subtitle behavior:
+- Prefer ffmpeg `subtitles` filter (external or auto-generated SRT)
+- Fallback to `drawtext` when `subtitles` is unavailable
+- If both subtitle filters are unavailable in local ffmpeg build, continue rendering without subtitle filter (pipeline remains usable)
+
+`synth-video` workspace behavior:
+- Default `--keep-frames`: keep `frames/`, `slides/`, and `frame_manifest.json` for debugging/re-renders
+- Optional `--clean-workspace`: remove intermediate artifacts after successful render (keep final MP4 only)
 
 ### 🎨 Web Interface Features
 
