@@ -165,3 +165,17 @@ def test_parse_deck_rejects_invalid_content_type(bad_content) -> None:
     payload["slides"][0]["content"] = bad_content
     with pytest.raises(DeckSchemaError):
         parse_deck(payload)
+
+
+def test_export_deck_rejects_invalid_aspect_ratio(tmp_path) -> None:
+    input_file = tmp_path / "outline.json"
+    output_file = tmp_path / "deck.html"
+    input_file.write_text(
+        json.dumps(_sample_payload(), ensure_ascii=False), encoding="utf-8"
+    )
+    with pytest.raises(ValueError):
+        export_deck(
+            input_path=input_file,
+            output_path=output_file,
+            options=DeckBuildOptions(aspect_ratio="1:1"),
+        )

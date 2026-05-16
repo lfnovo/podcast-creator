@@ -33,7 +33,7 @@ def _ensure_src_on_path() -> None:
 
     # repo/.venv/bin/python -> repo/src
     exe = Path(sys.executable).resolve()
-    if try_insert(exe.parent.parent / "src"):
+    if try_insert(exe.parent.parent.parent / "src"):
         return
 
     here = Path.cwd().resolve()

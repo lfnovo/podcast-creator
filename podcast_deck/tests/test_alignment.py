@@ -99,3 +99,34 @@ def test_align_with_srt_or_fallback_uses_fallback_when_srt_overlaps(
     result = align_with_srt_or_fallback(["s1", "s2"], fallback, srt_path=srt)
     assert result.method == "fallback_timeline"
     assert result.cues == fallback
+
+
+def test_align_with_srt_or_fallback_uses_fallback_when_srt_has_extra_intervals(
+    tmp_path: Path,
+) -> None:
+    fallback = [
+        SlideCue(slide_id="s1", start_sec=0.0, end_sec=1.0),
+        SlideCue(slide_id="s2", start_sec=1.0, end_sec=2.0),
+    ]
+    srt = tmp_path / "extra.srt"
+    srt.write_text(
+        "\n".join(
+            [
+                "1",
+                "00:00:00,000 --> 00:00:01,000",
+                "first",
+                "",
+                "2",
+                "00:00:01,000 --> 00:00:02,000",
+                "second",
+                "",
+                "3",
+                "00:00:02,000 --> 00:00:03,000",
+                "third",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    result = align_with_srt_or_fallback(["s1", "s2"], fallback, srt_path=srt)
+    assert result.method == "fallback_timeline"
+    assert result.cues == fallback

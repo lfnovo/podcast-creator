@@ -261,6 +261,10 @@ def _build_timeline_js(cues: list[SlideCue]) -> str:
 
 
 def _build_html(document: DeckDocument, options: DeckBuildOptions) -> str:
+    if options.aspect_ratio not in {"16:9", "4:3"}:
+        raise ValueError(
+            f"Unsupported aspect ratio `{options.aspect_ratio}`; expected `16:9` or `4:3`"
+        )
     slide_markup = "\n".join(
         _render_slide(slide, index) for index, slide in enumerate(document.slides)
     )

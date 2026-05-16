@@ -83,7 +83,7 @@ def align_with_srt_or_fallback(
         return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
     if not intervals:
         return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
-    if len(intervals) < len(slide_ids):
+    if len(intervals) != len(slide_ids):
         return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
     if not _is_monotonic_non_overlapping(intervals):
         return AlignmentResult(method="fallback_timeline", cues=fallback_cues)
