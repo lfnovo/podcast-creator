@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Literal, Tuple, Union
 
 from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from loguru import logger
-from moviepy import AudioFileClip, concatenate_audioclips
 from pydantic import BaseModel, Field, field_validator
 
 # Compile regex pattern once for better performance
@@ -260,23 +259,23 @@ async def combine_audio_files(
     audio_dir: Union[Path, str], final_filename: str, final_output_dir: Union[Path, str]
 ):
     """
-    Combines multiple audio files into a single MP3 file using moviepy.
-    Expects 'audio_segments_data' in inputs: a list of strings, where each string is a path to an audio file.
-    Also expects 'final_filename' in inputs: a string for the desired output filename (e.g., "podcast_episode.mp3").
-    Example input: {
-        "audio_segments_data": ["path/to/audio1.mp3", "path/to/audio2.mp3"],
-        "final_filename": "my_podcast.mp3"
-    }
-    Output: {"combined_audio_path": "output/audio/my_podcast.mp3"}
-    """
-    logger.info("[Core Function] combine_audio_files called.")
-    if isinstance(audio_dir, str):
-        audio_dir = Path(audio_dir)
-    if isinstance(final_output_dir, str):
-        final_output_dir = Path(final_output_dir)
-    list_of_audio_paths = sorted(audio_dir.glob("*.mp3"))
-    output_filename_from_input = final_filename
+    Combines multiple audio files into a single MP3 file using ffmpeg's concat demuxer.
 
+    ffmpeg reads actual audio sample data rather than trusting the duration reported
+    in MP3 file headers. Some TTS providers produce MP3 files where the header duration
+    is shorter than the real audio; moviepy's AudioFileClip trusted those headers and
+    truncated each clip accordingly, causing every speaker turn to be cut off mid-sentence
+    in the assembled output. ffmpeg is unaffected by this and is already a required
+    dependency (via moviepy), so no new dependencies are introduced.
+    """
+    import asyncio
+    import os
+
+    logger.info("[Core Function] combine_audio_files called.")
+    audio_dir = Path(audio_dir).resolve()
+    final_output_dir = Path(final_output_dir).resolve()
+
+    list_of_audio_paths = sorted(audio_dir.glob("*.mp3"))
     logger.debug(list_of_audio_paths)
 
     if not list_of_audio_paths:
@@ -285,88 +284,67 @@ async def combine_audio_files(
         )
         return {"combined_audio_path": "ERROR: No audio segment data"}
 
-    if not isinstance(list_of_audio_paths, list):
-        logger.error(
-            f"combine_audio_files: 'audio_segments_data' is not a list. Received: {type(list_of_audio_paths)}"
-        )
-        return {
-            "combined_audio_path": "ERROR: audio_segments_data must be a list of file paths"
-        }
+    final_output_dir.mkdir(parents=True, exist_ok=True)
 
-    clips = []
-    valid_clips = []
-    for i, file_path in enumerate(list_of_audio_paths):
-        if not isinstance(file_path, Path):
-            logger.warning(
-                f"combine_audio_files: Item {i} in audio_segments_data is not a string path: {file_path}. Skipping."
-            )
-            continue
-
-        try:
-            if file_path.exists() and file_path.is_file():
-                clips.append(AudioFileClip(str(file_path)))
-                valid_clips.append(clips[-1])  # Keep track of valid clips for later
-            else:
-                logger.error(
-                    f"combine_audio_files: File not found or not a file: {file_path}"
-                )
-        except Exception as e:
-            logger.error(
-                f"combine_audio_files: Error loading audio clip {file_path}: {e}"
-            )
-
-    if not clips:
-        logger.error("combine_audio_files: No valid audio clips could be loaded.")
-        return {"combined_audio_path": "ERROR: No valid clips"}
-
-    try:
-        # Ensure all clips are closed after concatenation, even if it fails during the process.
-        # MoviePy's concatenate_audioclips might not close source clips if it errors out mid-way.
-        final_clip = concatenate_audioclips(clips)
-    except Exception as e:
-        logger.error(f"Error during concatenate_audioclips: {e}")
-        for clip_obj in clips:
-            try:
-                clip_obj.close()
-            except Exception as close_exc:
-                logger.debug(f"Error closing clip during error handling: {close_exc}")
-        return {"combined_audio_path": f"ERROR: Concatenation failed - {e}"}
-
-    output_dir = final_output_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Use the filename from input if provided, otherwise generate one.
-    if output_filename_from_input and isinstance(output_filename_from_input, str):
-        # Basic sanitization for filename (optional, depending on how robust it needs to be)
-        # For now, assume it's a simple filename like 'episode.mp3'
-        output_filename = Path(
-            output_filename_from_input
-        ).name  # Use only the filename part
+    if final_filename and isinstance(final_filename, str):
+        output_filename = Path(final_filename).name
         if not output_filename.endswith(".mp3"):
-            output_filename += ".mp3"  # Ensure .mp3 extension
+            output_filename += ".mp3"
     else:
         output_filename = f"combined_{uuid.uuid4().hex}.mp3"
         logger.warning(
-            f"'final_filename' not provided or invalid in inputs. Using generated name: {output_filename}"
+            f"'final_filename' not provided or invalid. Using generated name: {output_filename}"
         )
 
-    output_path = output_dir / output_filename
+    output_path = final_output_dir / output_filename
+    concat_list_path = audio_dir / "_concat_list.txt"
 
     try:
-        final_clip.write_audiofile(str(output_path), codec="mp3")
-        logger.info(f"Successfully combined audio to: {output_path.resolve()}")
+        with open(str(concat_list_path), "w") as f:
+            for path in list_of_audio_paths:
+                f.write(f"file '{path.name}'\n")
+
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-f", "concat", "-safe", "0",
+            "-i", str(concat_list_path),
+            "-c", "copy", str(output_path), "-y",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(audio_dir),
+        )
+        _, stderr = await proc.communicate()
+
+        if proc.returncode != 0:
+            error_text = stderr.decode(errors="replace")
+            logger.error(f"combine_audio_files: ffmpeg concat failed: {error_text}")
+            return {"combined_audio_path": f"ERROR: ffmpeg concat failed - {error_text}"}
+
+        # Retrieve actual duration via ffprobe so callers get an accurate value.
+        probe = await asyncio.create_subprocess_exec(
+            "ffprobe", "-v", "quiet",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(output_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        probe_out, _ = await probe.communicate()
+        try:
+            total_duration = float(probe_out.decode().strip())
+        except (ValueError, AttributeError):
+            total_duration = 0.0
+
+        logger.info(f"Successfully combined audio to: {output_path}")
         return {
-            "combined_audio_path": str(output_path.resolve()),
-            "original_segments_count": len(valid_clips),
-            "total_duration_seconds": final_clip.duration,
+            "combined_audio_path": str(output_path),
+            "original_segments_count": len(list_of_audio_paths),
+            "total_duration_seconds": total_duration,
         }
     except Exception as e:
-        logger.error(f"Error writing final audio file {output_path}: {e}")
-        return {"combined_audio_path": f"ERROR: Failed to write output audio - {e}"}
+        logger.error(f"combine_audio_files: unexpected error: {e}")
+        return {"combined_audio_path": f"ERROR: {e}"}
     finally:
-        final_clip.close()  # Close the final concatenated clip
-        for clip_obj in clips:  # Ensure all source clips are closed
-            try:
-                clip_obj.close()
-            except Exception as close_exc:
-                logger.debug(f"Error closing source clip: {close_exc}")
+        try:
+            concat_list_path.unlink(missing_ok=True)
+        except Exception:
+            pass
