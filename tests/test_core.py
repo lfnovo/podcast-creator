@@ -2,8 +2,16 @@
 Tests for core utility functions
 """
 
+import asyncio
+import struct
+import wave
+from pathlib import Path
+
+import pytest
+
 from podcast_creator.core import (
     clean_thinking_content,
+    combine_audio_files,
     extract_text_content,
     parse_thinking_content,
 )
@@ -197,3 +205,84 @@ class TestParseThinkingContent:
         import json
         parsed = json.loads(cleaned)
         assert len(parsed["transcript"]) == 2
+
+
+def _write_silent_mp3(path: Path, duration_seconds: float) -> None:
+    """Write a minimal valid MP3 file by encoding silence via wave + ffmpeg."""
+    import subprocess
+
+    wav_path = path.with_suffix(".wav")
+    sample_rate = 44100
+    num_samples = int(sample_rate * duration_seconds)
+    with wave.open(str(wav_path), "w") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(b"\x00\x00" * num_samples)
+
+    subprocess.run(
+        ["ffmpeg", "-i", str(wav_path), "-q:a", "9", str(path), "-y"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    wav_path.unlink()
+
+
+@pytest.mark.skipif(
+    __import__("shutil").which("ffmpeg") is None,
+    reason="ffmpeg not available",
+)
+class TestCombineAudioFiles:
+    """Tests for combine_audio_files — verifies ffmpeg-based concatenation preserves full duration."""
+
+    def test_combines_clips_and_preserves_full_duration(self, tmp_path):
+        """
+        Regression test: each clip must be included in full.
+
+        Before the fix, moviepy read duration from MP3 headers. TTS-generated MP3s
+        can have headers that under-report the real duration; moviepy would truncate
+        each clip, causing mid-sentence cutoffs in the assembled output.
+        ffmpeg reads actual sample data and is not affected by this.
+        """
+        clips_dir = tmp_path / "clips"
+        clips_dir.mkdir()
+        _write_silent_mp3(clips_dir / "0000.mp3", 2.0)
+        _write_silent_mp3(clips_dir / "0001.mp3", 3.0)
+        _write_silent_mp3(clips_dir / "0002.mp3", 1.5)
+
+        result = asyncio.run(combine_audio_files(clips_dir, "episode.mp3", tmp_path))
+
+        assert "ERROR" not in result["combined_audio_path"]
+        output = Path(result["combined_audio_path"])
+        assert output.exists()
+        assert result["original_segments_count"] == 3
+        assert result["total_duration_seconds"] == pytest.approx(6.5, abs=0.2)
+
+    def test_returns_error_when_no_clips(self, tmp_path):
+        empty_dir = tmp_path / "clips"
+        empty_dir.mkdir()
+        result = asyncio.run(combine_audio_files(empty_dir, "episode.mp3", tmp_path))
+        assert "ERROR" in result["combined_audio_path"]
+
+    def test_creates_output_directory(self, tmp_path):
+        clips_dir = tmp_path / "clips"
+        clips_dir.mkdir()
+        _write_silent_mp3(clips_dir / "0000.mp3", 1.0)
+        output_dir = tmp_path / "new" / "nested" / "dir"
+
+        result = asyncio.run(combine_audio_files(clips_dir, "episode.mp3", output_dir))
+
+        assert output_dir.exists()
+        assert "ERROR" not in result["combined_audio_path"]
+
+    def test_handles_relative_audio_dir(self, tmp_path, monkeypatch):
+        """audio_dir passed as relative path must still resolve correctly."""
+        clips_dir = tmp_path / "clips"
+        clips_dir.mkdir()
+        _write_silent_mp3(clips_dir / "0000.mp3", 1.0)
+        monkeypatch.chdir(tmp_path)
+
+        result = asyncio.run(combine_audio_files(Path("clips"), "episode.mp3", tmp_path))
+
+        assert "ERROR" not in result["combined_audio_path"]

@@ -12,7 +12,6 @@ dependencies = [
     "esperanto>=2.19.4",
     "langgraph>=1.0.6",
     "loguru>=0.7.3",
-    "moviepy>=2.2.1",
     "nest-asyncio>=1.6.0",
     "pydub>=0.25.1",
     "python-dotenv>=1.1.1",
