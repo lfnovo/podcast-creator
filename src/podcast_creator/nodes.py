@@ -33,7 +33,10 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
     # Create outline model
     merged_config = {
         "max_tokens": 3000,
-        "structured": {"type": "json"},
+        "structured": {
+            "type": "json_schema",
+            "schema": outline_parser.pydantic_object,
+        },
         **outline_config,
     }
     outline_model = AIFactory.create_language(
@@ -86,10 +89,19 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
     transcript_model_name: str = configurable.get("transcript_model", "gpt-4o-mini")
     transcript_config = configurable.get("transcript_config") or {}
 
+    # Create validated transcript parser
+    speaker_profile = state["speaker_profile"]
+    assert speaker_profile is not None, "speaker_profile must be provided"
+    speaker_names = speaker_profile.get_speaker_names()
+    validated_transcript_parser = create_validated_transcript_parser(speaker_names)
+
     # Create transcript model
     merged_config = {
         "max_tokens": 5000,
-        "structured": {"type": "json"},
+        "structured": {
+            "type": "json_schema",
+            "schema": validated_transcript_parser.pydantic_object,
+        },
         **transcript_config,
     }
     transcript_model = AIFactory.create_language(
@@ -97,12 +109,6 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
         transcript_model_name,
         config=merged_config,
     ).to_langchain()
-
-    # Create validated transcript parser
-    speaker_profile = state["speaker_profile"]
-    assert speaker_profile is not None, "speaker_profile must be provided"
-    speaker_names = speaker_profile.get_speaker_names()
-    validated_transcript_parser = create_validated_transcript_parser(speaker_names)
 
     # Build retry decorator from configurable settings
     retry_cfg = get_retry_config(configurable)
