@@ -263,6 +263,7 @@ async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
     # Extract named params from tts_config, pass rest as kwargs
     api_key = tts_config.pop("api_key", None)
     base_url = tts_config.pop("base_url", None)
+    max_tokens = tts_config.pop("max_tokens", None)
 
     # Create TTS model
     tts_model = AIFactory.create_text_to_speech(
@@ -271,7 +272,10 @@ async def generate_single_audio_clip(dialogue_info: Dict) -> Path:
 
     # Generate audio
     await tts_model.agenerate_speech(
-        text=dialogue.dialogue, voice=voices[dialogue.speaker], output_file=clip_path
+        text=dialogue.dialogue,
+        voice=voices[dialogue.speaker],
+        output_file=clip_path,
+        **({"max_tokens": max_tokens} if max_tokens is not None else {}),
     )
 
     logger.info(f"Generated audio clip: {clip_path}")

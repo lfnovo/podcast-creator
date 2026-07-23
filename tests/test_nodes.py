@@ -351,6 +351,33 @@ class TestTtsConfigPassthrough:
         )
 
     @patch("podcast_creator.nodes.AIFactory")
+    def test_tts_max_tokens_is_sent_with_the_audio_request(self, mock_factory):
+        mock_tts = MagicMock()
+        mock_tts.agenerate_speech = AsyncMock()
+        mock_factory.create_text_to_speech.return_value = mock_tts
+
+        dialogue = MagicMock(speaker="Alice", dialogue="Hello world")
+        dialogue_info = {
+            "dialogue": dialogue,
+            "index": 0,
+            "output_dir": Path("/tmp/test_output"),
+            "tts_provider": "openai_compatible",
+            "tts_model": "qwen",
+            "voices": {"Alice": "Ryan"},
+            "tts_config": {"max_tokens": 1050},
+        }
+
+        with patch("pathlib.Path.mkdir"):
+            asyncio.run(generate_single_audio_clip(dialogue_info))
+
+        mock_tts.agenerate_speech.assert_awaited_once_with(
+            text="Hello world",
+            voice="Ryan",
+            output_file=Path("/tmp/test_output/clips/0000.mp3"),
+            max_tokens=1050,
+        )
+
+    @patch("podcast_creator.nodes.AIFactory")
     def test_tts_config_empty_passes_none_for_named_params(self, mock_factory):
         """Test that empty tts_config passes None for api_key and base_url"""
         mock_tts = MagicMock()
