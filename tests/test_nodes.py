@@ -48,7 +48,13 @@ class TestOutlineConfigMerging:
         mock_factory.create_language.assert_called_once_with(
             "openai",
             "gpt-4o-mini",
-            config={"max_tokens": 3000, "structured": {"type": "json"}},
+            config={
+                "max_tokens": 3000,
+                "structured": {
+                    "type": "json_schema",
+                    "schema": mock_parser.pydantic_object,
+                },
+            },
         )
 
     @patch("podcast_creator.nodes.AIFactory")
@@ -73,7 +79,13 @@ class TestOutlineConfigMerging:
         mock_factory.create_language.assert_called_once_with(
             "openai",
             "gpt-4o-mini",
-            config={"max_tokens": 6000, "structured": {"type": "json"}},
+            config={
+                "max_tokens": 6000,
+                "structured": {
+                    "type": "json_schema",
+                    "schema": mock_parser.pydantic_object,
+                },
+            },
         )
 
     @patch("podcast_creator.nodes.AIFactory")
@@ -100,7 +112,10 @@ class TestOutlineConfigMerging:
             "gpt-4o-mini",
             config={
                 "max_tokens": 3000,
-                "structured": {"type": "json"},
+                "structured": {
+                    "type": "json_schema",
+                    "schema": mock_parser.pydantic_object,
+                },
                 "temperature": 0.7,
             },
         )
@@ -127,7 +142,13 @@ class TestOutlineConfigMerging:
         mock_factory.create_language.assert_called_once_with(
             "openai",
             "gpt-4o-mini",
-            config={"max_tokens": 3000, "structured": {"type": "json"}},
+            config={
+                "max_tokens": 3000,
+                "structured": {
+                    "type": "json_schema",
+                    "schema": mock_parser.pydantic_object,
+                },
+            },
         )
 
 
@@ -178,7 +199,10 @@ class TestTranscriptConfigMerging:
             "gpt-4o-mini",
             config={
                 "max_tokens": 10000,
-                "structured": {"type": "json"},
+                "structured": {
+                    "type": "json_schema",
+                    "schema": mock_parser.pydantic_object,
+                },
                 "temperature": 0.8,
             },
         )
