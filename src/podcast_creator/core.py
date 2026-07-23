@@ -1,5 +1,6 @@
 import json
 import re
+import subprocess
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Tuple, Union
@@ -7,10 +8,43 @@ from typing import Any, Dict, List, Literal, Tuple, Union
 from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from loguru import logger
 from moviepy import AudioFileClip, concatenate_audioclips
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Compile regex pattern once for better performance
 THINK_PATTERN = re.compile(r"<think>(.*?)</think>", re.DOTALL)
+
+
+def trim_trailing_silence(file_path: Path) -> None:
+    """Remove generator padding while preserving speech and in-clip pauses."""
+    from imageio_ffmpeg import get_ffmpeg_exe
+
+    trimmed_path = file_path.with_suffix(".trimmed.mp3")
+    ffmpeg = get_ffmpeg_exe()
+    try:
+        subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-i",
+                str(file_path),
+                "-af",
+                "areverse,silenceremove=start_periods=1:start_duration=1:start_threshold=-45dB:start_silence=0.25,areverse",
+                "-codec:a",
+                "libmp3lame",
+                str(trimmed_path),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [ffmpeg, "-v", "error", "-i", str(trimmed_path), "-f", "null", "-"],
+            check=True,
+            capture_output=True,
+        )
+        trimmed_path.replace(file_path)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        logger.warning(f"Could not trim trailing silence from {file_path}: {exc}")
+        trimmed_path.unlink(missing_ok=True)
 
 
 def parse_thinking_content(content: str) -> Tuple[str, str]:
@@ -58,7 +92,7 @@ def parse_thinking_content(content: str) -> Tuple[str, str]:
     if "<think>" in cleaned_content:
         think_idx = cleaned_content.index("<think>")
         before = cleaned_content[:think_idx]
-        after = cleaned_content[think_idx + len("<think>"):]
+        after = cleaned_content[think_idx + len("<think>") :]
 
         # Find valid JSON in the remaining content using raw_decode,
         # which can parse JSON starting at any position and ignores trailing text.
@@ -152,15 +186,34 @@ class Segment(BaseModel):
     name: str = Field(..., description="Name of the segment")
     description: str = Field(..., description="Description of the segment")
     size: Literal["short", "medium", "long"] = Field(
-        default="medium", description="Size of the segment"
+        ..., description="Size of the segment"
     )
 
 
 class Outline(BaseModel):
     segments: list[Segment] = Field(..., description="List of segments")
 
+    @model_validator(mode="before")
+    @classmethod
+    def unwrap_outline(cls, value):
+        if isinstance(value, dict) and isinstance(value.get("outline"), dict):
+            return value["outline"]
+        return value
+
     def model_dump(self, **kwargs) -> Dict[str, Any]:
         return {"segments": [segment.model_dump(**kwargs) for segment in self.segments]}
+
+
+def create_outline_parser(num_segments: int) -> PydanticOutputParser:
+    class ExactOutline(Outline):
+        segments: list[Segment] = Field(
+            ...,
+            min_length=num_segments,
+            max_length=num_segments,
+            description="List of segments",
+        )
+
+    return PydanticOutputParser(pydantic_object=ExactOutline)
 
 
 class Dialogue(BaseModel):
@@ -207,17 +260,42 @@ def create_validated_transcript_parser(valid_speaker_names: List[str]):
         def validate_speaker_name(cls, v):
             if not v or len(v.strip()) == 0:
                 raise ValueError("Speaker name cannot be empty")
-
-            cleaned_name = v.strip()
-            if cleaned_name not in valid_speaker_names:
-                raise ValueError(
-                    f"Invalid speaker name '{cleaned_name}'. Must be one of: {', '.join(valid_speaker_names)}"
-                )
-
-            return cleaned_name
+            return v.strip()
 
     class ValidatedTranscript(BaseModel):
         transcript: list[ValidatedDialogue] = Field(..., description="Transcript")
+
+        @model_validator(mode="after")
+        def canonicalize_speakers(self):
+            labels = list(
+                dict.fromkeys(dialogue.speaker for dialogue in self.transcript)
+            )
+            canonical = {}
+            for label in labels:
+                matches = [
+                    name
+                    for name in valid_speaker_names
+                    if label == name
+                    or label.casefold()
+                    in {part.rstrip(".").casefold() for part in name.split()}
+                ]
+                if len(matches) == 1:
+                    canonical[label] = matches[0]
+
+            unknown = [label for label in labels if label not in canonical]
+            remaining = [
+                name for name in valid_speaker_names if name not in canonical.values()
+            ]
+            if unknown and (len(remaining) == 1 or len(unknown) == len(remaining)):
+                canonical.update(zip(unknown, remaining))
+            elif unknown:
+                raise ValueError(
+                    f"Invalid speaker names: {', '.join(unknown)}. Must be one of: {', '.join(valid_speaker_names)}"
+                )
+
+            for dialogue in self.transcript:
+                dialogue.speaker = canonical[dialogue.speaker]
+            return self
 
         def model_dump(self, **kwargs) -> Dict[str, Any]:
             return {
@@ -229,16 +307,31 @@ def create_validated_transcript_parser(valid_speaker_names: List[str]):
     return PydanticOutputParser(pydantic_object=ValidatedTranscript)
 
 
+def create_validated_transcript_schema(
+    valid_speaker_names: List[str],
+) -> type[BaseModel]:
+    SpeakerName = Literal.__getitem__(tuple(valid_speaker_names))
+
+    class StrictDialogue(BaseModel):
+        speaker: SpeakerName = Field(..., description="Speaker name")
+        dialogue: str = Field(..., description="Dialogue")
+
+    class StrictTranscript(BaseModel):
+        transcript: list[StrictDialogue] = Field(..., description="Transcript")
+
+    return StrictTranscript
+
+
 outline_parser = PydanticOutputParser(pydantic_object=Outline)
 transcript_parser = PydanticOutputParser(pydantic_object=Transcript)
 
 
-def get_outline_prompter():
+def get_outline_prompter(parser: PydanticOutputParser = outline_parser):
     """Get outline prompter with configuration support."""
     from .config import ConfigurationManager
 
     config_manager = ConfigurationManager()
-    return config_manager.get_template_prompter("outline", parser=outline_parser)
+    return config_manager.get_template_prompter("outline", parser=parser)
 
 
 def get_transcript_prompter():
@@ -304,6 +397,7 @@ async def combine_audio_files(
 
         try:
             if file_path.exists() and file_path.is_file():
+                trim_trailing_silence(file_path)
                 clips.append(AudioFileClip(str(file_path)))
                 valid_clips.append(clips[-1])  # Keep track of valid clips for later
             else:

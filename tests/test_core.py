@@ -2,11 +2,72 @@
 Tests for core utility functions
 """
 
+from pathlib import Path
+
 from podcast_creator.core import (
+    create_outline_parser,
+    create_validated_transcript_schema,
+    outline_parser,
     clean_thinking_content,
+    create_validated_transcript_parser,
     extract_text_content,
     parse_thinking_content,
+    trim_trailing_silence,
 )
+
+
+class TestTrailingSilenceTrim:
+    def test_replaces_a_clip_with_its_trimmed_version(self, tmp_path, monkeypatch):
+        clip = tmp_path / "clip.mp3"
+        clip.write_bytes(b"padded")
+
+        def fake_run(command, **_):
+            if command[-1] != "-":
+                Path(command[-1]).write_bytes(b"trimmed")
+
+        monkeypatch.setattr("podcast_creator.core.subprocess.run", fake_run)
+        monkeypatch.setattr("imageio_ffmpeg.get_ffmpeg_exe", lambda: "ffmpeg")
+
+        trim_trailing_silence(clip)
+
+        assert clip.read_bytes() == b"trimmed"
+
+
+class TestOutlineParser:
+    def test_accepts_outline_wrapper(self):
+        outline = outline_parser.parse(
+            '{"outline": {"segments": [{"name": "One", "description": "First", "size": "short"}]}}'
+        )
+
+        assert outline.segments[0].name == "One"
+
+    def test_requires_the_selected_segment_count_and_size(self):
+        parser = create_outline_parser(2)
+
+        assert (
+            len(
+                parser.parse("""{"segments": [
+            {"name": "One", "description": "First", "size": "short"},
+            {"name": "Two", "description": "Second", "size": "long"}
+        ]}""").segments
+            )
+            == 2
+        )
+
+        import pytest
+
+        with pytest.raises(Exception):
+            parser.parse(
+                '{"segments": [{"name": "One", "description": "First", "size": "short"}]}'
+            )
+
+        with pytest.raises(Exception):
+            parser.parse(
+                """{"segments": [
+                    {"name": "One", "description": "First"},
+                    {"name": "Two", "description": "Second", "size": "long"}
+                ]}"""
+            )
 
 
 class TestExtractTextContent:
@@ -18,9 +79,7 @@ class TestExtractTextContent:
 
     def test_gemini_format(self):
         """Structured list with dict parts containing 'text' key (Gemini-style)"""
-        content = [
-            {"type": "text", "text": "hello world", "extras": {"some": "data"}}
-        ]
+        content = [{"type": "text", "text": "hello world", "extras": {"some": "data"}}]
         assert extract_text_content(content) == "hello world"
 
     def test_gemini_format_multiple_parts(self):
@@ -94,7 +153,7 @@ class TestParseThinkingContent:
             "- Dr. Alex: Analytical\n"
             "- Jamie: Enthusiastic\n"
             "\n"
-            'This will ensure at least 3 turns and cover all points.'
+            "This will ensure at least 3 turns and cover all points."
             '{"transcript": [{"speaker": "Alice", "dialogue": "Hello"}]}'
         )
         thinking, cleaned = parse_thinking_content(content)
@@ -179,7 +238,7 @@ class TestParseThinkingContent:
             "\n"
             "This will ensure at least 3 turns and cover all points."
             '{"transcript": [\n'
-            '    {\n'
+            "    {\n"
             '        "speaker": "Dr. Alex Chen",\n'
             '        "dialogue": "Welcome to the podcast, everyone."\n'
             "    },\n"
@@ -195,5 +254,51 @@ class TestParseThinkingContent:
         assert "SurrealDB 3.0" in thinking
         # Verify the JSON is parseable
         import json
+
         parsed = json.loads(cleaned)
         assert len(parsed["transcript"]) == 2
+
+
+class TestValidatedTranscriptParser:
+    def test_schema_requires_configured_speakers(self):
+        schema = create_validated_transcript_schema(["Dr. Alex Chen"])
+
+        assert schema.model_validate({
+            "transcript": [{"speaker": "Dr. Alex Chen", "dialogue": "Hello."}]
+        })
+
+        import pytest
+
+        with pytest.raises(Exception):
+            schema.model_validate({
+                "transcript": [{"speaker": "Alex", "dialogue": "Hello."}]
+            })
+
+    def test_canonicalizes_a_complete_replacement_cast(self):
+        parser = create_validated_transcript_parser([
+            "Dr. Alex Chen",
+            "Jamie Rodriguez",
+        ])
+
+        transcript = parser.parse(
+            '{"transcript": ['
+            '{"speaker": "Alex", "dialogue": "Welcome."}, '
+            '{"speaker": "Jordan", "dialogue": "Thanks."}'
+            "]}"
+        )
+
+        assert [dialogue.speaker for dialogue in transcript.transcript] == [
+            "Dr. Alex Chen",
+            "Jamie Rodriguez",
+        ]
+
+    def test_rejects_an_ambiguous_replacement_speaker(self):
+        parser = create_validated_transcript_parser([
+            "Dr. Alex Chen",
+            "Jamie Rodriguez",
+        ])
+
+        import pytest
+
+        with pytest.raises(Exception, match="Invalid speaker names: Sam"):
+            parser.parse('{"transcript": [{"speaker": "Sam", "dialogue": "Hello."}]}')
