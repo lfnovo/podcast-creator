@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
-from typing import Dict, Optional, List, Union
+from collections.abc import Awaitable, Callable
+from typing import Any, Dict, Literal, Optional, List, Union, cast
 
 from langgraph.graph import END, START, StateGraph
 from loguru import logger
@@ -12,10 +13,16 @@ from .nodes import (
     generate_transcript_node,
     route_audio_generation,
 )
+from .core import Dialogue, Outline
 from .language import resolve_language_name
 from .speakers import load_speaker_config
 from .episodes import load_episode_config
 from .state import PodcastState
+
+PodcastProgressCallback = Callable[
+    [Literal["outline", "transcript"], Union[Outline, List[Dialogue]]],
+    Awaitable[None],
+]
 
 logger.info("Creating podcast generation graph")
 
@@ -58,6 +65,7 @@ async def create_podcast(
     retry_max_attempts: Optional[int] = None,
     retry_wait_multiplier: Optional[int] = None,
     language: Optional[str] = None,
+    progress_callback: Optional[PodcastProgressCallback] = None,
 ) -> Dict:
     """
     High-level function to create a podcast using the LangGraph workflow
@@ -80,6 +88,9 @@ async def create_podcast(
         retry_max_attempts: Max retry attempts for LLM calls (default 3)
         retry_wait_multiplier: Exponential backoff multiplier in seconds (default 2)
         language: Language code for podcast generation (e.g., 'pt', 'pt-BR', 'es')
+        progress_callback: Async callback invoked once after the outline and
+            transcript are generated. This lets callers persist progress before
+            audio generation completes.
 
     Returns:
         Dict with results including final audio path
@@ -170,8 +181,31 @@ async def create_podcast(
 
     config = {"configurable": configurable}
 
-    # Create and run the graph
-    result = await graph.ainvoke(initial_state, config=config)
+    # Stream complete state snapshots so integrations can expose the completed
+    # outline and transcript while the comparatively long TTS phase is running.
+    # LangGraph's "values" mode emits the full state after every graph step.
+    result: Optional[PodcastState] = None
+    emitted_progress: set[str] = set()
+    async for snapshot in graph.astream(
+        cast(Any, initial_state), config=cast(Any, config), stream_mode="values"
+    ):
+        state = cast(PodcastState, snapshot)
+        result = state
+
+        if progress_callback and state["outline"] and "outline" not in emitted_progress:
+            await progress_callback("outline", state["outline"])
+            emitted_progress.add("outline")
+
+        if (
+            progress_callback
+            and state["transcript"]
+            and "transcript" not in emitted_progress
+        ):
+            await progress_callback("transcript", state["transcript"])
+            emitted_progress.add("transcript")
+
+    if result is None:
+        raise RuntimeError("Podcast generation graph completed without producing state")
 
     # Save outputs
     if result["outline"]:
