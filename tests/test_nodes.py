@@ -1,6 +1,7 @@
 """
 Tests for node config merging logic
 """
+
 import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from pathlib import Path
@@ -12,15 +13,38 @@ from podcast_creator.nodes import (
 )
 
 
-def _setup_language_mocks(mock_factory, mock_prompter, mock_parser):
+def _setup_language_mocks(mock_factory, mock_prompter):
     """Helper to wire up common mocks for LLM node tests."""
     mock_lc = MagicMock()
-    mock_lc.ainvoke = AsyncMock(return_value=MagicMock(content='{"segments": []}'))
+    mock_lc.ainvoke = AsyncMock(
+        return_value=MagicMock(
+            content="""{"segments": [
+        {"name": "One", "description": "First", "size": "short"},
+        {"name": "Two", "description": "Second", "size": "medium"},
+        {"name": "Three", "description": "Third", "size": "long"}
+    ]}"""
+        )
+    )
     mock_model = MagicMock()
     mock_model.to_langchain.return_value = mock_lc
     mock_factory.create_language.return_value = mock_model
     mock_prompter.return_value.render.return_value = "prompt"
-    mock_parser.invoke.return_value = MagicMock(segments=[])
+
+
+def _assert_schema_config(mock_factory, max_tokens, **extra):
+    config = mock_factory.create_language.call_args.kwargs["config"]
+    assert config["max_tokens"] == max_tokens
+    assert config["structured"]["type"] == "json_schema"
+    assert config["structured"]["strict"] is True
+    assert config["structured"]["name"] == "podcast_outline"
+    assert (
+        config["structured"]["schema"].model_json_schema()["properties"]["segments"][
+            "minItems"
+        ]
+        == 3
+    )
+    for key, value in extra.items():
+        assert config[key] == value
 
 
 class TestOutlineConfigMerging:
@@ -28,12 +52,9 @@ class TestOutlineConfigMerging:
 
     @patch("podcast_creator.nodes.AIFactory")
     @patch("podcast_creator.nodes.get_outline_prompter")
-    @patch("podcast_creator.nodes.outline_parser")
-    def test_empty_config_preserves_defaults(
-        self, mock_parser, mock_prompter, mock_factory
-    ):
+    def test_empty_config_preserves_defaults(self, mock_prompter, mock_factory):
         """Test that empty outline_config preserves default max_tokens and structured"""
-        _setup_language_mocks(mock_factory, mock_prompter, mock_parser)
+        _setup_language_mocks(mock_factory, mock_prompter)
 
         state = {
             "briefing": "test",
@@ -45,20 +66,13 @@ class TestOutlineConfigMerging:
 
         asyncio.run(generate_outline_node(state, config))
 
-        mock_factory.create_language.assert_called_once_with(
-            "openai",
-            "gpt-4o-mini",
-            config={"max_tokens": 3000, "structured": {"type": "json"}},
-        )
+        _assert_schema_config(mock_factory, 3000)
 
     @patch("podcast_creator.nodes.AIFactory")
     @patch("podcast_creator.nodes.get_outline_prompter")
-    @patch("podcast_creator.nodes.outline_parser")
-    def test_user_config_overrides_defaults(
-        self, mock_parser, mock_prompter, mock_factory
-    ):
+    def test_user_config_overrides_defaults(self, mock_prompter, mock_factory):
         """Test that user config overrides default max_tokens"""
-        _setup_language_mocks(mock_factory, mock_prompter, mock_parser)
+        _setup_language_mocks(mock_factory, mock_prompter)
 
         state = {
             "briefing": "test",
@@ -70,20 +84,13 @@ class TestOutlineConfigMerging:
 
         asyncio.run(generate_outline_node(state, config))
 
-        mock_factory.create_language.assert_called_once_with(
-            "openai",
-            "gpt-4o-mini",
-            config={"max_tokens": 6000, "structured": {"type": "json"}},
-        )
+        _assert_schema_config(mock_factory, 6000)
 
     @patch("podcast_creator.nodes.AIFactory")
     @patch("podcast_creator.nodes.get_outline_prompter")
-    @patch("podcast_creator.nodes.outline_parser")
-    def test_user_config_adds_new_keys(
-        self, mock_parser, mock_prompter, mock_factory
-    ):
+    def test_user_config_adds_new_keys(self, mock_prompter, mock_factory):
         """Test that user config can add new keys like temperature"""
-        _setup_language_mocks(mock_factory, mock_prompter, mock_parser)
+        _setup_language_mocks(mock_factory, mock_prompter)
 
         state = {
             "briefing": "test",
@@ -95,24 +102,13 @@ class TestOutlineConfigMerging:
 
         asyncio.run(generate_outline_node(state, config))
 
-        mock_factory.create_language.assert_called_once_with(
-            "openai",
-            "gpt-4o-mini",
-            config={
-                "max_tokens": 3000,
-                "structured": {"type": "json"},
-                "temperature": 0.7,
-            },
-        )
+        _assert_schema_config(mock_factory, 3000, temperature=0.7)
 
     @patch("podcast_creator.nodes.AIFactory")
     @patch("podcast_creator.nodes.get_outline_prompter")
-    @patch("podcast_creator.nodes.outline_parser")
-    def test_none_config_preserves_defaults(
-        self, mock_parser, mock_prompter, mock_factory
-    ):
+    def test_none_config_preserves_defaults(self, mock_prompter, mock_factory):
         """Test that None outline_config preserves defaults"""
-        _setup_language_mocks(mock_factory, mock_prompter, mock_parser)
+        _setup_language_mocks(mock_factory, mock_prompter)
 
         state = {
             "briefing": "test",
@@ -124,11 +120,7 @@ class TestOutlineConfigMerging:
 
         asyncio.run(generate_outline_node(state, config))
 
-        mock_factory.create_language.assert_called_once_with(
-            "openai",
-            "gpt-4o-mini",
-            config={"max_tokens": 3000, "structured": {"type": "json"}},
-        )
+        _assert_schema_config(mock_factory, 3000)
 
 
 class TestTranscriptConfigMerging:
@@ -173,15 +165,12 @@ class TestTranscriptConfigMerging:
 
         asyncio.run(generate_transcript_node(state, config))
 
-        mock_factory.create_language.assert_called_once_with(
-            "openai",
-            "gpt-4o-mini",
-            config={
-                "max_tokens": 10000,
-                "structured": {"type": "json"},
-                "temperature": 0.8,
-            },
-        )
+        config = mock_factory.create_language.call_args.kwargs["config"]
+        assert config["max_tokens"] == 10000
+        assert config["temperature"] == 0.8
+        assert config["structured"]["type"] == "json_schema"
+        assert config["structured"]["strict"] is True
+        assert config["structured"]["name"] == "podcast_transcript"
 
 
 class TestLanguagePassthrough:
@@ -189,12 +178,9 @@ class TestLanguagePassthrough:
 
     @patch("podcast_creator.nodes.AIFactory")
     @patch("podcast_creator.nodes.get_outline_prompter")
-    @patch("podcast_creator.nodes.outline_parser")
-    def test_outline_passes_language_to_template(
-        self, mock_parser, mock_prompter, mock_factory
-    ):
+    def test_outline_passes_language_to_template(self, mock_prompter, mock_factory):
         """Test that language is passed to outline template render"""
-        _setup_language_mocks(mock_factory, mock_prompter, mock_parser)
+        _setup_language_mocks(mock_factory, mock_prompter)
 
         state = {
             "briefing": "test",
@@ -212,12 +198,9 @@ class TestLanguagePassthrough:
 
     @patch("podcast_creator.nodes.AIFactory")
     @patch("podcast_creator.nodes.get_outline_prompter")
-    @patch("podcast_creator.nodes.outline_parser")
-    def test_outline_passes_none_when_no_language(
-        self, mock_parser, mock_prompter, mock_factory
-    ):
+    def test_outline_passes_none_when_no_language(self, mock_prompter, mock_factory):
         """Test that language is None when not set in state"""
-        _setup_language_mocks(mock_factory, mock_prompter, mock_parser)
+        _setup_language_mocks(mock_factory, mock_prompter)
 
         state = {
             "briefing": "test",
@@ -566,7 +549,9 @@ class TestPerSpeakerTtsOverride:
 
     @patch("podcast_creator.nodes.generate_single_audio_clip", new_callable=AsyncMock)
     @patch("podcast_creator.nodes.asyncio.sleep", new_callable=AsyncMock)
-    def test_speaker_tts_config_override_replaces_profile(self, mock_sleep, mock_gen_clip):
+    def test_speaker_tts_config_override_replaces_profile(
+        self, mock_sleep, mock_gen_clip
+    ):
         """Speaker with tts_config replaces profile config entirely (no merge)"""
         mock_gen_clip.return_value = Path("/tmp/clip.mp3")
 
@@ -604,7 +589,9 @@ class TestPerSpeakerTtsOverride:
 
     @patch("podcast_creator.nodes.generate_single_audio_clip", new_callable=AsyncMock)
     @patch("podcast_creator.nodes.asyncio.sleep", new_callable=AsyncMock)
-    def test_speaker_empty_tts_config_does_not_fallthrough(self, mock_sleep, mock_gen_clip):
+    def test_speaker_empty_tts_config_does_not_fallthrough(
+        self, mock_sleep, mock_gen_clip
+    ):
         """Speaker with tts_config={} does NOT fall through to profile config"""
         mock_gen_clip.return_value = Path("/tmp/clip.mp3")
 
@@ -728,9 +715,7 @@ class TestTtsRetry:
     def test_no_retry_on_value_error(self, mock_sleep, mock_factory):
         """generate_all_audio_node does not retry ValueError from TTS"""
         mock_tts = MagicMock()
-        mock_tts.agenerate_speech = AsyncMock(
-            side_effect=ValueError("invalid voice")
-        )
+        mock_tts.agenerate_speech = AsyncMock(side_effect=ValueError("invalid voice"))
         mock_factory.create_text_to_speech.return_value = mock_tts
 
         state = self._make_state(["Alice"])
@@ -752,9 +737,7 @@ class TestTtsRetry:
         """Retry config from configurable dict is respected for TTS"""
         mock_tts = MagicMock()
         # Always fails — with max_attempts=2 we expect exactly 2 calls
-        mock_tts.agenerate_speech = AsyncMock(
-            side_effect=RuntimeError("always fails")
-        )
+        mock_tts.agenerate_speech = AsyncMock(side_effect=RuntimeError("always fails"))
         mock_factory.create_text_to_speech.return_value = mock_tts
 
         state = self._make_state(["Alice"])
@@ -773,4 +756,5 @@ class TestTtsRetry:
 
 if __name__ == "__main__":
     import pytest
+
     pytest.main([__file__, "-v"])

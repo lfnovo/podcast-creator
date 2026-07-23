@@ -11,11 +11,12 @@ from .core import (
     Dialogue,
     clean_thinking_content,
     combine_audio_files,
+    create_outline_parser,
     create_validated_transcript_parser,
+    create_validated_transcript_schema,
     extract_text_content,
     get_outline_prompter,
     get_transcript_prompter,
-    outline_parser,
 )
 from .retry import create_retry_decorator, get_retry_config
 from .state import PodcastState
@@ -29,12 +30,18 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
     outline_provider = configurable.get("outline_provider", "openai")
     outline_model_name = configurable.get("outline_model", "gpt-4o-mini")
     outline_config = configurable.get("outline_config") or {}
+    outline_parser = create_outline_parser(state["num_segments"])
 
     # Create outline model
     merged_config = {
         "max_tokens": 3000,
-        "structured": {"type": "json"},
         **outline_config,
+        "structured": {
+            "type": "json_schema",
+            "schema": outline_parser.pydantic_object,
+            "name": "podcast_outline",
+            "strict": True,
+        },
     }
     outline_model = AIFactory.create_language(
         outline_provider,
@@ -54,18 +61,16 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
         return outline_parser.invoke(content)
 
     # Generate outline
-    outline_prompt = get_outline_prompter()
-    outline_prompt_text = outline_prompt.render(
-        {
-            "briefing": state["briefing"],
-            "num_segments": state["num_segments"],
-            "context": state["content"],
-            "speakers": state["speaker_profile"].speakers
-            if state["speaker_profile"]
-            else [],
-            "language": state.get("language"),
-        }
-    )
+    outline_prompt = get_outline_prompter(parser=outline_parser)
+    outline_prompt_text = outline_prompt.render({
+        "briefing": state["briefing"],
+        "num_segments": state["num_segments"],
+        "context": state["content"],
+        "speakers": state["speaker_profile"].speakers
+        if state["speaker_profile"]
+        else [],
+        "language": state.get("language"),
+    })
 
     outline_result = await _invoke_and_parse(outline_prompt_text)
 
@@ -86,23 +91,29 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
     transcript_model_name: str = configurable.get("transcript_model", "gpt-4o-mini")
     transcript_config = configurable.get("transcript_config") or {}
 
+    # Create validated transcript parser
+    speaker_profile = state["speaker_profile"]
+    assert speaker_profile is not None, "speaker_profile must be provided"
+    speaker_names = speaker_profile.get_speaker_names()
+    validated_transcript_parser = create_validated_transcript_parser(speaker_names)
+    transcript_schema = create_validated_transcript_schema(speaker_names)
+
     # Create transcript model
     merged_config = {
         "max_tokens": 5000,
-        "structured": {"type": "json"},
         **transcript_config,
+        "structured": {
+            "type": "json_schema",
+            "schema": transcript_schema,
+            "name": "podcast_transcript",
+            "strict": True,
+        },
     }
     transcript_model = AIFactory.create_language(
         transcript_provider,
         transcript_model_name,
         config=merged_config,
     ).to_langchain()
-
-    # Create validated transcript parser
-    speaker_profile = state["speaker_profile"]
-    assert speaker_profile is not None, "speaker_profile must be provided"
-    speaker_names = speaker_profile.get_speaker_names()
-    validated_transcript_parser = create_validated_transcript_parser(speaker_names)
 
     # Build retry decorator from configurable settings
     retry_cfg = get_retry_config(configurable)
@@ -126,15 +137,12 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
         )
 
         is_final = i == len(outline.segments) - 1
-        turns = 3 if segment.size == "short" else 6 if segment.size == "medium" else 10
-
         data = {
             "briefing": state["briefing"],
             "outline": outline,
             "context": state["content"],
             "segment": segment,
             "is_final": is_final,
-            "turns": turns,
             "speakers": speaker_profile.speakers,
             "speaker_names": speaker_names,
             "transcript": transcript,
@@ -220,7 +228,9 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
                 "tts_provider": speaker.tts_provider or tts_provider,
                 "tts_model": speaker.tts_model or tts_model,
                 "voices": voices,
-                "tts_config": speaker.tts_config if speaker.tts_config is not None else tts_config,
+                "tts_config": speaker.tts_config
+                if speaker.tts_config is not None
+                else tts_config,
             }
             task = _generate_clip(dialogue_info)
             batch_tasks.append(task)

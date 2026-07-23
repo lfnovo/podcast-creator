@@ -58,7 +58,7 @@ def parse_thinking_content(content: str) -> Tuple[str, str]:
     if "<think>" in cleaned_content:
         think_idx = cleaned_content.index("<think>")
         before = cleaned_content[:think_idx]
-        after = cleaned_content[think_idx + len("<think>"):]
+        after = cleaned_content[think_idx + len("<think>") :]
 
         # Find valid JSON in the remaining content using raw_decode,
         # which can parse JSON starting at any position and ignores trailing text.
@@ -152,7 +152,7 @@ class Segment(BaseModel):
     name: str = Field(..., description="Name of the segment")
     description: str = Field(..., description="Description of the segment")
     size: Literal["short", "medium", "long"] = Field(
-        default="medium", description="Size of the segment"
+        ..., description="Size of the segment"
     )
 
 
@@ -168,6 +168,18 @@ class Outline(BaseModel):
 
     def model_dump(self, **kwargs) -> Dict[str, Any]:
         return {"segments": [segment.model_dump(**kwargs) for segment in self.segments]}
+
+
+def create_outline_parser(num_segments: int) -> PydanticOutputParser:
+    class ExactOutline(Outline):
+        segments: list[Segment] = Field(
+            ...,
+            min_length=num_segments,
+            max_length=num_segments,
+            description="List of segments",
+        )
+
+    return PydanticOutputParser(pydantic_object=ExactOutline)
 
 
 class Dialogue(BaseModel):
@@ -221,19 +233,25 @@ def create_validated_transcript_parser(valid_speaker_names: List[str]):
 
         @model_validator(mode="after")
         def canonicalize_speakers(self):
-            labels = list(dict.fromkeys(dialogue.speaker for dialogue in self.transcript))
+            labels = list(
+                dict.fromkeys(dialogue.speaker for dialogue in self.transcript)
+            )
             canonical = {}
             for label in labels:
                 matches = [
-                    name for name in valid_speaker_names
-                    if label == name or label.casefold()
+                    name
+                    for name in valid_speaker_names
+                    if label == name
+                    or label.casefold()
                     in {part.rstrip(".").casefold() for part in name.split()}
                 ]
                 if len(matches) == 1:
                     canonical[label] = matches[0]
 
             unknown = [label for label in labels if label not in canonical]
-            remaining = [name for name in valid_speaker_names if name not in canonical.values()]
+            remaining = [
+                name for name in valid_speaker_names if name not in canonical.values()
+            ]
             if unknown and (len(remaining) == 1 or len(unknown) == len(remaining)):
                 canonical.update(zip(unknown, remaining))
             elif unknown:
@@ -255,16 +273,31 @@ def create_validated_transcript_parser(valid_speaker_names: List[str]):
     return PydanticOutputParser(pydantic_object=ValidatedTranscript)
 
 
+def create_validated_transcript_schema(
+    valid_speaker_names: List[str],
+) -> type[BaseModel]:
+    SpeakerName = Literal.__getitem__(tuple(valid_speaker_names))
+
+    class StrictDialogue(BaseModel):
+        speaker: SpeakerName = Field(..., description="Speaker name")
+        dialogue: str = Field(..., description="Dialogue")
+
+    class StrictTranscript(BaseModel):
+        transcript: list[StrictDialogue] = Field(..., description="Transcript")
+
+    return StrictTranscript
+
+
 outline_parser = PydanticOutputParser(pydantic_object=Outline)
 transcript_parser = PydanticOutputParser(pydantic_object=Transcript)
 
 
-def get_outline_prompter():
+def get_outline_prompter(parser: PydanticOutputParser = outline_parser):
     """Get outline prompter with configuration support."""
     from .config import ConfigurationManager
 
     config_manager = ConfigurationManager()
-    return config_manager.get_template_prompter("outline", parser=outline_parser)
+    return config_manager.get_template_prompter("outline", parser=parser)
 
 
 def get_transcript_prompter():
