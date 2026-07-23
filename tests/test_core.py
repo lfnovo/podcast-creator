@@ -2,6 +2,8 @@
 Tests for core utility functions
 """
 
+from pathlib import Path
+
 from podcast_creator.core import (
     create_outline_parser,
     create_validated_transcript_schema,
@@ -10,7 +12,24 @@ from podcast_creator.core import (
     create_validated_transcript_parser,
     extract_text_content,
     parse_thinking_content,
+    trim_trailing_silence,
 )
+
+
+class TestTrailingSilenceTrim:
+    def test_replaces_a_clip_with_its_trimmed_version(self, tmp_path, monkeypatch):
+        clip = tmp_path / "clip.mp3"
+        clip.write_bytes(b"padded")
+
+        def fake_run(command, **_):
+            Path(command[-1]).write_bytes(b"trimmed")
+
+        monkeypatch.setattr("podcast_creator.core.subprocess.run", fake_run)
+        monkeypatch.setattr("imageio_ffmpeg.get_ffmpeg_exe", lambda: "ffmpeg")
+
+        trim_trailing_silence(clip)
+
+        assert clip.read_bytes() == b"trimmed"
 
 
 class TestOutlineParser:

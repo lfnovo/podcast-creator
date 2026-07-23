@@ -1,5 +1,6 @@
 import json
 import re
+import subprocess
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Tuple, Union
@@ -11,6 +12,33 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Compile regex pattern once for better performance
 THINK_PATTERN = re.compile(r"<think>(.*?)</think>", re.DOTALL)
+
+
+def trim_trailing_silence(file_path: Path) -> None:
+    """Remove generator padding while preserving speech and in-clip pauses."""
+    from imageio_ffmpeg import get_ffmpeg_exe
+
+    trimmed_path = file_path.with_suffix(".trimmed.mp3")
+    try:
+        subprocess.run(
+            [
+                get_ffmpeg_exe(),
+                "-y",
+                "-i",
+                str(file_path),
+                "-af",
+                "areverse,silenceremove=start_periods=1:start_duration=1:start_threshold=-45dB:start_silence=0.25,areverse",
+                "-codec:a",
+                "libmp3lame",
+                str(trimmed_path),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        trimmed_path.replace(file_path)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        logger.warning(f"Could not trim trailing silence from {file_path}: {exc}")
+        trimmed_path.unlink(missing_ok=True)
 
 
 def parse_thinking_content(content: str) -> Tuple[str, str]:
@@ -363,6 +391,7 @@ async def combine_audio_files(
 
         try:
             if file_path.exists() and file_path.is_file():
+                trim_trailing_silence(file_path)
                 clips.append(AudioFileClip(str(file_path)))
                 valid_clips.append(clips[-1])  # Keep track of valid clips for later
             else:
