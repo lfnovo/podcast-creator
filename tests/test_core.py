@@ -3,11 +3,21 @@ Tests for core utility functions
 """
 
 from podcast_creator.core import (
+    outline_parser,
     clean_thinking_content,
     create_validated_transcript_parser,
     extract_text_content,
     parse_thinking_content,
 )
+
+
+class TestOutlineParser:
+    def test_accepts_outline_wrapper(self):
+        outline = outline_parser.parse(
+            '{"outline": {"segments": [{"name": "One", "description": "First", "size": "short"}]}}'
+        )
+
+        assert outline.segments[0].name == "One"
 
 
 class TestExtractTextContent:

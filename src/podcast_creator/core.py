@@ -159,6 +159,13 @@ class Segment(BaseModel):
 class Outline(BaseModel):
     segments: list[Segment] = Field(..., description="List of segments")
 
+    @model_validator(mode="before")
+    @classmethod
+    def unwrap_outline(cls, value):
+        if isinstance(value, dict) and isinstance(value.get("outline"), dict):
+            return value["outline"]
+        return value
+
     def model_dump(self, **kwargs) -> Dict[str, Any]:
         return {"segments": [segment.model_dump(**kwargs) for segment in self.segments]}
 
