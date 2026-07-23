@@ -19,10 +19,11 @@ def trim_trailing_silence(file_path: Path) -> None:
     from imageio_ffmpeg import get_ffmpeg_exe
 
     trimmed_path = file_path.with_suffix(".trimmed.mp3")
+    ffmpeg = get_ffmpeg_exe()
     try:
         subprocess.run(
             [
-                get_ffmpeg_exe(),
+                ffmpeg,
                 "-y",
                 "-i",
                 str(file_path),
@@ -32,6 +33,11 @@ def trim_trailing_silence(file_path: Path) -> None:
                 "libmp3lame",
                 str(trimmed_path),
             ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [ffmpeg, "-v", "error", "-i", str(trimmed_path), "-f", "null", "-"],
             check=True,
             capture_output=True,
         )

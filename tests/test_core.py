@@ -22,7 +22,8 @@ class TestTrailingSilenceTrim:
         clip.write_bytes(b"padded")
 
         def fake_run(command, **_):
-            Path(command[-1]).write_bytes(b"trimmed")
+            if command[-1] != "-":
+                Path(command[-1]).write_bytes(b"trimmed")
 
         monkeypatch.setattr("podcast_creator.core.subprocess.run", fake_run)
         monkeypatch.setattr("imageio_ffmpeg.get_ffmpeg_exe", lambda: "ffmpeg")
