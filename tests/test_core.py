@@ -4,6 +4,7 @@ Tests for core utility functions
 
 from podcast_creator.core import (
     clean_thinking_content,
+    create_validated_transcript_parser,
     extract_text_content,
     parse_thinking_content,
 )
@@ -197,3 +198,34 @@ class TestParseThinkingContent:
         import json
         parsed = json.loads(cleaned)
         assert len(parsed["transcript"]) == 2
+
+
+class TestValidatedTranscriptParser:
+    def test_canonicalizes_a_complete_replacement_cast(self):
+        parser = create_validated_transcript_parser(
+            ["Dr. Alex Chen", "Jamie Rodriguez"]
+        )
+
+        transcript = parser.parse(
+            '{"transcript": ['
+            '{"speaker": "Alex", "dialogue": "Welcome."}, '
+            '{"speaker": "Jordan", "dialogue": "Thanks."}'
+            ']}'
+        )
+
+        assert [dialogue.speaker for dialogue in transcript.transcript] == [
+            "Dr. Alex Chen",
+            "Jamie Rodriguez",
+        ]
+
+    def test_rejects_an_ambiguous_replacement_speaker(self):
+        parser = create_validated_transcript_parser(
+            ["Dr. Alex Chen", "Jamie Rodriguez"]
+        )
+
+        import pytest
+
+        with pytest.raises(Exception, match="Invalid speaker names: Sam"):
+            parser.parse(
+                '{"transcript": [{"speaker": "Sam", "dialogue": "Hello."}]}'
+            )

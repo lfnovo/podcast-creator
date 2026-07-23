@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Literal, Tuple, Union
 from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from loguru import logger
 from moviepy import AudioFileClip, concatenate_audioclips
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Compile regex pattern once for better performance
 THINK_PATTERN = re.compile(r"<think>(.*?)</think>", re.DOTALL)
@@ -207,17 +207,36 @@ def create_validated_transcript_parser(valid_speaker_names: List[str]):
         def validate_speaker_name(cls, v):
             if not v or len(v.strip()) == 0:
                 raise ValueError("Speaker name cannot be empty")
-
-            cleaned_name = v.strip()
-            if cleaned_name not in valid_speaker_names:
-                raise ValueError(
-                    f"Invalid speaker name '{cleaned_name}'. Must be one of: {', '.join(valid_speaker_names)}"
-                )
-
-            return cleaned_name
+            return v.strip()
 
     class ValidatedTranscript(BaseModel):
         transcript: list[ValidatedDialogue] = Field(..., description="Transcript")
+
+        @model_validator(mode="after")
+        def canonicalize_speakers(self):
+            labels = list(dict.fromkeys(dialogue.speaker for dialogue in self.transcript))
+            canonical = {}
+            for label in labels:
+                matches = [
+                    name for name in valid_speaker_names
+                    if label == name or label.casefold()
+                    in {part.rstrip(".").casefold() for part in name.split()}
+                ]
+                if len(matches) == 1:
+                    canonical[label] = matches[0]
+
+            unknown = [label for label in labels if label not in canonical]
+            remaining = [name for name in valid_speaker_names if name not in canonical.values()]
+            if unknown and (len(remaining) == 1 or len(unknown) == len(remaining)):
+                canonical.update(zip(unknown, remaining))
+            elif unknown:
+                raise ValueError(
+                    f"Invalid speaker names: {', '.join(unknown)}. Must be one of: {', '.join(valid_speaker_names)}"
+                )
+
+            for dialogue in self.transcript:
+                dialogue.speaker = canonical[dialogue.speaker]
+            return self
 
         def model_dump(self, **kwargs) -> Dict[str, Any]:
             return {
