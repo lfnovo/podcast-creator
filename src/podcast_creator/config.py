@@ -8,7 +8,7 @@ from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 
-from .speakers import SpeakerConfig, SpeakerProfile
+from .speakers import SpeakerConfig, SpeakerProfile, raise_multi_speaker_config_error
 from .episodes import EpisodeConfig, EpisodeProfile
 
 
@@ -306,6 +306,7 @@ class ConfigurationManager:
                     )
                     return speaker_config.get_profile(config_name)
             except Exception as e:
+                raise_multi_speaker_config_error(e)
                 logger.debug(f"Could not load speaker profile from config: {e}")
 
         return None

@@ -20,6 +20,7 @@ from .graph import graph as podcast_graph
 from .speakers import Speaker, SpeakerConfig, SpeakerProfile, load_speaker_config
 from .episodes import EpisodeProfile, EpisodeConfig, load_episode_config
 from .language import resolve_language_name
+from .nodes import regenerate_audio_group
 
 try:
     import importlib.metadata as metadata
@@ -39,6 +40,7 @@ __all__ = [
     "PodcastConfig",
     # Core functions (kept for utilities)
     "combine_audio_files",
+    "regenerate_audio_group",
     "extract_text_content",
     "parse_thinking_content",
     "clean_thinking_content",
