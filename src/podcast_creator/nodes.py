@@ -1,7 +1,9 @@
 import asyncio
+import json
 import os
+import tempfile
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from esperanto import AIFactory
 from langchain_core.runnables import RunnableConfig
@@ -18,6 +20,8 @@ from .core import (
     outline_parser,
 )
 from .retry import create_retry_decorator, get_retry_config
+from .audio_groups import format_dialogue, group_dialogue, save_group_plan
+from .speakers import MULTI_SPEAKER_CHAR_LIMITS, SpeakerProfile
 from .state import PodcastState
 
 
@@ -191,7 +195,23 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
 
     @tts_retry
     async def _generate_clip(dialogue_info: Dict) -> Path:
+        if speaker_profile.multi_speaker:
+            return await generate_multi_speaker_audio_clip(dialogue_info)
         return await generate_single_audio_clip(dialogue_info)
+
+    groups = None
+    if speaker_profile.multi_speaker:
+        if not transcript:
+            raise ValueError("Multi-speaker rendering requires a non-empty transcript")
+        for turn in transcript:
+            speaker_profile.get_speaker_by_name(turn.speaker)
+        groups = group_dialogue(
+            transcript,
+            MULTI_SPEAKER_CHAR_LIMITS[tts_provider],
+            configurable.get("audio_section_starts", ()),
+        )
+        total_segments = len(groups)
+        save_group_plan(output_dir, groups, speaker_profile)
 
     logger.info(
         f"Generating {total_segments} audio clips in sequential batches of {batch_size}"
@@ -212,6 +232,17 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
         # Create tasks for this batch
         batch_tasks = []
         for i in range(batch_start, batch_end):
+            if groups is not None:
+                batch_tasks.append(_generate_clip({
+                    "turns": groups[i],
+                    "index": i,
+                    "output_dir": output_dir,
+                    "tts_provider": tts_provider,
+                    "tts_model": tts_model,
+                    "voices": voices,
+                    "tts_config": tts_config,
+                }))
+                continue
             speaker = speaker_profile.get_speaker_by_name(transcript[i].speaker)
             dialogue_info = {
                 "dialogue": transcript[i],
@@ -235,9 +266,83 @@ async def generate_all_audio_node(state: PodcastState, config: RunnableConfig) -
         if batch_end < total_segments:
             await asyncio.sleep(1)
 
+    if groups is not None:
+        # The unchanged combiner scans the clips directory. Remove stale numbered
+        # clips only after all new groups succeeded (e.g. rerunning a per-turn job).
+        for clip in (output_dir / "clips").glob("*.mp3"):
+            if clip.stem.isdigit() and int(clip.stem) >= total_segments:
+                clip.unlink()
+
     logger.info(f"Generated all {len(all_clip_paths)} audio clips")
 
     return {"audio_clips": all_clip_paths}
+
+
+async def generate_multi_speaker_audio_clip(dialogue_info: Dict) -> Path:
+    """Synthesize a group, replacing its numbered clip only after success."""
+    clips_dir = Path(dialogue_info["output_dir"]) / "clips"
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    clip_path = clips_dir / f"{dialogue_info['index']:04d}.mp3"
+    tts_config = dict(dialogue_info.get("tts_config") or {})
+    api_key = tts_config.pop("api_key", None)
+    base_url = tts_config.pop("base_url", None)
+    model = AIFactory.create_text_to_speech(
+        dialogue_info["tts_provider"], dialogue_info["tts_model"],
+        api_key=api_key, base_url=base_url, **tts_config,
+    )
+    if not hasattr(model, "agenerate_multi_speaker_speech"):
+        raise ValueError("Selected TTS provider does not support multi-speaker rendering")
+    with tempfile.TemporaryDirectory(dir=clips_dir) as temporary_dir:
+        temporary_clip = Path(temporary_dir) / clip_path.name
+        await model.agenerate_multi_speaker_speech(
+            text=format_dialogue(dialogue_info["turns"]),
+            speaker_configs=[{"speaker": name, "voice": voice}
+                             for name, voice in dialogue_info["voices"].items()],
+            output_file=temporary_clip,
+            **tts_config,
+        )
+        temporary_clip.replace(clip_path)
+    return clip_path
+
+
+async def regenerate_audio_group(
+    output_dir: Path,
+    group_index: int,
+    speaker_profile: SpeakerProfile,
+    config: Optional[RunnableConfig] = None,
+) -> Path:
+    """Re-render one saved group (zero-based), leaving other clips untouched.
+
+    Supply the original profile, optionally with a new tts_config seed. Recombine
+    the clips afterward to update the final episode; no LLM generation is needed.
+    """
+    if not speaker_profile.multi_speaker:
+        raise ValueError("Group regeneration requires multi_speaker=True")
+    output_dir = Path(output_dir)
+    plan = json.loads((output_dir / "audio_groups.json").read_text(encoding="utf-8"))
+    if plan.get("version") != 1:
+        raise ValueError("Unsupported audio group plan version")
+    if (plan["tts_provider"] != speaker_profile.tts_provider
+            or plan["tts_model"] != speaker_profile.tts_model
+            or plan["voices"] != speaker_profile.get_voice_mapping()):
+        raise ValueError("Provider, model and voices must match the saved group plan")
+    if type(group_index) is not int or not 0 <= group_index < len(plan["groups"]):
+        raise ValueError("group_index is outside the saved group plan")
+    turns = [Dialogue(**turn) for turn in plan["groups"][group_index]]
+    for turn in turns:
+        speaker_profile.get_speaker_by_name(turn.speaker)
+    retry = create_retry_decorator(**get_retry_config(
+        (config or {}).get("configurable", {})
+    ))
+    return await retry(generate_multi_speaker_audio_clip)({
+        "turns": turns,
+        "index": group_index,
+        "output_dir": output_dir,
+        "tts_provider": speaker_profile.tts_provider,
+        "tts_model": speaker_profile.tts_model,
+        "voices": speaker_profile.get_voice_mapping(),
+        "tts_config": speaker_profile.tts_config,
+    })
 
 
 async def generate_single_audio_clip(dialogue_info: Dict) -> Path:

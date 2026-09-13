@@ -58,9 +58,13 @@ async def create_podcast(
     retry_max_attempts: Optional[int] = None,
     retry_wait_multiplier: Optional[int] = None,
     language: Optional[str] = None,
+    audio_section_starts: Optional[List[int]] = None,
 ) -> Dict:
     """
     High-level function to create a podcast using the LangGraph workflow
+
+    ``audio_section_starts`` optionally identifies zero-based transcript turn
+    indices at outline section starts, used for multi-speaker audio grouping.
 
     Args:
         content: Source content for the podcast
@@ -162,6 +166,7 @@ async def create_podcast(
         "transcript_model": transcript_model,
         "outline_config": outline_config,
         "transcript_config": transcript_config,
+        "audio_section_starts": audio_section_starts or [],
     }
     if retry_max_attempts is not None:
         configurable["retry_max_attempts"] = retry_max_attempts

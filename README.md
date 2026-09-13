@@ -505,6 +505,77 @@ Individual speakers can override the profile-level TTS provider, model, and conf
 
 In this example, Dr. Sarah Chen uses ElevenLabs while Marcus Rivera uses the profile-level OpenAI TTS. All three fields (`tts_provider`, `tts_model`, `tts_config`) are optional per speaker — any field not set falls back to the profile-level value. If a speaker defines `tts_config`, it **replaces** the profile-level config entirely (no merging).
 
+### Multi-speaker dialogue audio (opt-in)
+
+Add `"multi_speaker": true` to a speaker profile to synthesize consecutive turns
+together through Esperanto's `agenerate_multi_speaker_speech`. Omit the flag to
+keep per-turn synthesis, including per-speaker overrides, unchanged.
+
+For example, use the following shared settings alongside your existing `speakers`:
+
+```json
+{
+  "tts_provider": "elevenlabs",
+  "tts_model": "eleven_v3",
+  "multi_speaker": true,
+  "tts_config": { "seed": 42 }
+}
+```
+
+Google Gemini TTS is also supported (for example,
+`"tts_provider": "google"`, `"tts_model": "gemini-2.5-flash-preview-tts"`).
+Profile loading constructs the Esperanto model and checks its capability, so
+credentials must already be configured. Unsupported providers/Esperanto versions
+fail during profile loading. Multi-speaker profiles require shared TTS settings:
+remove per-speaker provider, model and config overrides. Names cannot contain
+colons or line breaks. Embedded line breaks in dialogue become spaces so each
+turn reaches Esperanto as one `Speaker Name: dialogue` line.
+
+ElevenLabs groups use a conservative 2,000-character budget, including speaker
+labels and newlines, based on its [reliable request ceiling](https://elevenlabs.io/docs/api-reference/text-to-dialogue/convert).
+Google uses a larger 32,000-character working budget. Its [Gemini TTS context
+limit](https://ai.google.dev/gemini-api/docs/speech-generation) is measured in
+tokens and includes generated audio; the character budget is a grouping heuristic,
+not a guarantee of output duration or context fit. A fitting episode uses one
+request. Provider/model voice restrictions still apply.
+
+Groups prefer section boundaries, then speaker changes, then the last whole turn
+that fits. A turn exceeding the budget raises an error before synthesis; shorten
+that turn rather than losing dialogue. `TTS_BATCH_SIZE`, retries, and the delay
+between batches apply to groups exactly as they do to individual clips.
+
+The transcript generator does not retain section provenance. When you know the
+zero-based indices of turns starting outline sections, supply
+`audio_section_starts=[0, 6, 12]` to `create_podcast()`, or set the same key in the
+graph's `configurable` dict. For a saved or edited transcript, you can invoke
+`generate_all_audio_node(state, {"configurable": {"audio_section_starts": [0, 6, 12]}})`
+directly. Without indices, grouping falls back to speaker changes. Section indices
+must describe the actual transcript, not estimated turn counts from the outline.
+
+Each group produces `clips/0000.mp3`, `clips/0001.mp3`, etc. Exact membership is
+saved in `audio_groups.json`, without credentials or TTS config. To regenerate
+just one group and then rebuild the combined episode:
+
+```python
+from pathlib import Path
+from podcast_creator import load_speaker_config, regenerate_audio_group, combine_audio_files
+
+output = Path("output/my_episode")
+profile = load_speaker_config("my_profile")
+# Optional: change/remove the seed to try a different performance.
+profile.tts_config = {**(profile.tts_config or {}), "seed": 43}
+await regenerate_audio_group(output, 1, profile)  # replaces only clips/0001.mp3
+await combine_audio_files(output / "clips", "my_episode.mp3", output / "audio")
+```
+
+Regeneration uses the saved turns and requires matching provider, model and
+voices; it accepts updated shared TTS config and the usual retry config. A failed
+request preserves the previous clip. Full multi-speaker renders remove obsolete
+numbered clips after successful synthesis so the unchanged combiner does not
+append clips from a previous, longer render. Use a dedicated episode output
+directory. Listen across group boundaries before publishing; grouping cannot
+guarantee matching prosody between independently generated requests.
+
 ### Creating Custom Speakers
 
 1. **Get Voice IDs** from your TTS provider

@@ -2,7 +2,29 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from esperanto import AIFactory
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+# Conservative text budgets, including speaker labels and separators. Google's
+# Gemini API has a token context limit, not a character limit; this is a working
+# text budget, leaving room for audio output rather than equating chars to tokens.
+MULTI_SPEAKER_CHAR_LIMITS = {"elevenlabs": 2000, "google": 32000}
+
+
+class MultiSpeakerConfigError(ValueError):
+    """Invalid opt-in dialogue configuration; must not trigger config fallback."""
+
+
+def raise_multi_speaker_config_error(error):
+    """Preserve opt-in validation failures through legacy fallback loaders."""
+    if isinstance(error, MultiSpeakerConfigError):
+        raise error
+    if hasattr(error, "errors"):
+        for detail in error.errors():
+            cause = detail.get("ctx", {}).get("error")
+            if isinstance(cause, MultiSpeakerConfigError):
+                raise cause from error
 
 
 class Speaker(BaseModel):
@@ -43,6 +65,42 @@ class SpeakerProfile(BaseModel):
     tts_config: Optional[Dict[str, Any]] = Field(
         None, description="Config dict passed to AIFactory.create_text_to_speech()"
     )
+    multi_speaker: bool = Field(False, description="Render consecutive turns together")
+
+    @model_validator(mode="after")
+    def validate_multi_speaker(self):
+        if not self.multi_speaker:
+            return self
+        for speaker in self.speakers:
+            if ":" in speaker.name or len(speaker.name.splitlines()) != 1:
+                raise MultiSpeakerConfigError(
+                    "Multi-speaker names must not contain colons or line breaks"
+                )
+            if (speaker.tts_provider is not None or speaker.tts_model is not None
+                    or speaker.tts_config is not None):
+                raise MultiSpeakerConfigError(
+                    "Multi-speaker rendering uses one shared TTS configuration; "
+                    "remove per-speaker TTS overrides"
+                )
+        try:
+            model = AIFactory.create_text_to_speech(
+                self.tts_provider, self.tts_model, **(self.tts_config or {})
+            )
+        except Exception as error:
+            raise MultiSpeakerConfigError(
+                f"Cannot validate multi-speaker provider '{self.tts_provider}': {error}"
+            ) from error
+        if not hasattr(model, "agenerate_multi_speaker_speech"):
+            raise MultiSpeakerConfigError(
+                f"TTS provider '{self.tts_provider}' does not support multi-speaker "
+                "rendering (agenerate_multi_speaker_speech); use a supported "
+                "Esperanto provider/version or disable multi_speaker"
+            )
+        if self.tts_provider not in MULTI_SPEAKER_CHAR_LIMITS:
+            raise MultiSpeakerConfigError(
+                f"No multi-speaker request budget configured for '{self.tts_provider}'"
+            )
+        return self
 
     @field_validator("speakers")
     @classmethod
@@ -118,6 +176,7 @@ class SpeakerConfig(BaseModel):
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in speaker config file: {e}")
         except Exception as e:
+            raise_multi_speaker_config_error(e)
             raise ValueError(f"Error loading speaker config: {e}")
 
 
@@ -145,7 +204,8 @@ def load_speaker_config(config_name: str, project_root: Path = None) -> SpeakerP
         configured_profile = config_manager.get_speaker_profile(config_name)
         if configured_profile:
             return configured_profile
-    except Exception:
+    except Exception as e:
+        raise_multi_speaker_config_error(e)
         pass  # Fall back to file-based loading
 
     # Priority 2: Check configured speaker config file path
@@ -161,7 +221,8 @@ def load_speaker_config(config_name: str, project_root: Path = None) -> SpeakerP
                 
                 # Use config_name directly as profile name
                 return speaker_config.get_profile(config_name)
-    except Exception:
+    except Exception as e:
+        raise_multi_speaker_config_error(e)
         pass  # Fall back to default behavior
 
     # Priority 3: Use existing file-based loading (working directory)
@@ -189,7 +250,8 @@ def load_speaker_config(config_name: str, project_root: Path = None) -> SpeakerP
             data = json.loads(content)
             speaker_config = SpeakerConfig(**data)
             return speaker_config.get_profile(config_name)
-    except Exception:
+    except Exception as e:
+        raise_multi_speaker_config_error(e)
         pass
 
     # If we get here, config not found
