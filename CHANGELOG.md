@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `combine_audio_files` raises `ValueError` / `RuntimeError` on failure instead of returning an `"ERROR: ..."` string, so `create_podcast()` no longer reports a failed episode as a file path (#44)
 
 ### Changed
+- Outline and transcript generation request schema-driven structured output (`json_schema` with the `Outline` / validated transcript schemas) instead of generic JSON, so providers return the expected shape and Anthropic no longer warns about prompt-guided JSON (#38). Models without JSON-schema support can fall back with `outline_config` / `transcript_config` = `{"structured": {"type": "json"}}`
 - Minimum dependency versions raised to `esperanto>=2.28.0` and `content-core>=2.2.0`
 - Default transcript model changed from `claude-3-5-sonnet-latest` to `claude-sonnet-5-5` in `create_podcast()`, `EpisodeProfile` and all bundled episode profiles: Anthropic has retired the Claude 3 family, so the previous default failed on every request
 - Streamlit UI default models updated for retired ones (Anthropic → `claude-sonnet-5-5`, Gemini → `gemini-2.5-flash` / `gemini-2.5-pro`, Groq → `openai/gpt-oss-120b`)

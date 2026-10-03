@@ -672,6 +672,23 @@ result = await create_podcast(
 )
 ```
 
+### 🧩 Structured Output
+
+Outline and transcript generation ask the model for JSON that matches the package's own schemas (`json_schema` structured output via Esperanto), so providers that support it return exactly the expected shape. A few providers or older models cannot honor a JSON schema (for example, Anthropic requires Claude 4.5 or newer); Esperanto then fails fast with a clear error. For those, fall back to generic JSON mode:
+
+```python
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="tech_discussion",
+    episode_name="my_podcast",
+    output_dir="output/my_podcast",
+    outline_config={"structured": {"type": "json"}},
+    transcript_config={"structured": {"type": "json"}},
+)
+```
+
+The same keys work inside an episode profile's `outline_config` / `transcript_config`.
+
 ### 🌐 Proxy Configuration
 
 If you're behind a corporate firewall or need to route requests through a proxy, use standard environment variables:
