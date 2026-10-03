@@ -20,9 +20,11 @@ from .core import (
 from .retry import create_retry_decorator, get_retry_config
 from .state import PodcastState
 
-# Default output token limits; override via outline_config / transcript_config
+# Default output token limits; override via outline_config / transcript_config.
+# 8192 is the output cap of the bundled default transcript model (claude-3-5-sonnet);
+# Anthropic rejects higher values with HTTP 400.
 DEFAULT_OUTLINE_MAX_TOKENS = 8192
-DEFAULT_TRANSCRIPT_MAX_TOKENS = 16384
+DEFAULT_TRANSCRIPT_MAX_TOKENS = 8192
 
 
 async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> Dict:

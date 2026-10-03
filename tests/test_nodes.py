@@ -191,7 +191,7 @@ class TestDefaultMaxTokens:
 
     def test_default_values(self):
         assert DEFAULT_OUTLINE_MAX_TOKENS == 8192
-        assert DEFAULT_TRANSCRIPT_MAX_TOKENS == 16384
+        assert DEFAULT_TRANSCRIPT_MAX_TOKENS == 8192
 
     @patch("podcast_creator.nodes.AIFactory")
     @patch("podcast_creator.nodes.get_transcript_prompter")
