@@ -186,7 +186,8 @@ configure("episode_config", {
             "speaker_config": "business_analysts",
             "outline_model": "gpt-4o",
             "default_briefing": "Create an engaging startup pitch...",
-            "num_segments": 6
+            "num_segments": 6,
+            "audio_gap_ms": 500  # optional pause between turns (default 400, 0 disables)
         }
     }
 })
@@ -516,10 +517,10 @@ In this example, Dr. Sarah Chen uses ElevenLabs while Marcus Rivera uses the pro
 
 ### Language Models (via Esperanto)
 
-- **OpenAI**: GPT-4, GPT-4o, o1, o3
-- **Anthropic**: Claude 3.5 Sonnet, Claude 3 Opus
-- **Google**: Gemini Pro, Gemini Flash
-- **Groq**: Mixtral, Llama models
+- **OpenAI**: GPT-4o and newer GPT / o-series models
+- **Anthropic**: Claude Sonnet 5.5, Claude Opus 5.5
+- **Google / Vertex AI**: Gemini 2.5 Pro, Gemini 2.5 Flash
+- **Groq**: GPT-OSS, Llama models
 - **Ollama**: Local model support
 - **Perplexity**: Research-enhanced models
 - **Azure OpenAI**: Enterprise OpenAI
@@ -527,13 +528,18 @@ In this example, Dr. Sarah Chen uses ElevenLabs while Marcus Rivera uses the pro
 - **DeepSeek**: DeepSeek models
 - **xAI**: Grok models
 - **OpenRouter**: Multi-provider access
+- **Cohere, DashScope (Qwen), MiniMax, Z.ai, SiliconFlow, Novita, PayPerQ** and any OpenAI-compatible endpoint (vLLM, LM Studio, ...)
 
 ### Text-to-Speech Services
 
 - **ElevenLabs**: Professional voice synthesis
 - **OpenAI TTS**: High-quality voices
-- **Google**: Google Cloud TTS
-- **Vertex AI**: Google Cloud enterprise
+- **Google (Gemini TTS)** and **Vertex AI**
+- **Azure OpenAI**
+- **Deepgram** (Aura), **Mistral** (Voxtral), **MiniMax**, **xAI**
+- **OpenRouter**, **PayPerQ** and OpenAI-compatible TTS servers (e.g. Speaches/Kokoro)
+
+See the [Esperanto provider docs](https://github.com/lfnovo/esperanto) for the full, current list.
 
 ## 📁 Output Structure
 
@@ -611,6 +617,20 @@ This is particularly useful for:
 - **Other TTS providers** with stricter rate limits
 - **Debugging**: Set to 1 for sequential processing
 
+### ⏸️ Pauses Between Turns
+
+When combining clips, a short pause is inserted between dialogue turns for natural conversational pacing (TTS clips usually end without trailing silence). The default is `400` ms; set `audio_gap_ms` on the episode profile or pass it to `create_podcast()` (the argument wins), and use `0` to disable it:
+
+```python
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="tech_discussion",
+    episode_name="my_podcast",
+    output_dir="output/my_podcast",
+    audio_gap_ms=600,
+)
+```
+
 ### 🔁 Retry Configuration
 
 LLM and TTS API calls automatically retry on transient failures (network errors, timeouts, rate limits) with exponential backoff. Non-retryable errors are raised immediately without retry — this includes programming errors (e.g. `ValueError`) and HTTP 4xx client errors (e.g. 404 model not found, 401 auth failure), except 429 rate-limit which is retried.
@@ -636,6 +656,21 @@ result = await create_podcast(
 ```
 
 To disable retries entirely, set `PODCAST_RETRY_MAX_ATTEMPTS=1`.
+
+### 📏 LLM Output Limits
+
+Outline and transcript generation request up to `8192` output tokens by default. This is podcast-creator's request limit, not a model cap: current models, including the default Claude Sonnet 5.5, support much larger outputs. If your model has a lower output limit (some legacy models cap at 4096), or you need more room, override `max_tokens` via `outline_config` / `transcript_config`, either in `create_podcast()` or in the episode profile:
+
+```python
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="tech_discussion",
+    episode_name="my_podcast",
+    output_dir="output/my_podcast",
+    outline_config={"max_tokens": 4096},
+    transcript_config={"max_tokens": 4096},
+)
+```
 
 ### 🌐 Proxy Configuration
 

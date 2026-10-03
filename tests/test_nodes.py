@@ -6,6 +6,8 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from pathlib import Path
 
 from podcast_creator.nodes import (
+    DEFAULT_OUTLINE_MAX_TOKENS,
+    DEFAULT_TRANSCRIPT_MAX_TOKENS,
     generate_outline_node,
     generate_transcript_node,
     generate_single_audio_clip,
@@ -49,7 +51,7 @@ class TestOutlineConfigMerging:
             "openai",
             "gpt-4o-mini",
             config={
-                "max_tokens": 3000,
+                "max_tokens": DEFAULT_OUTLINE_MAX_TOKENS,
                 "structured": {
                     "type": "json_schema",
                     "schema": mock_parser.pydantic_object,
@@ -111,7 +113,7 @@ class TestOutlineConfigMerging:
             "openai",
             "gpt-4o-mini",
             config={
-                "max_tokens": 3000,
+                "max_tokens": DEFAULT_OUTLINE_MAX_TOKENS,
                 "structured": {
                     "type": "json_schema",
                     "schema": mock_parser.pydantic_object,
@@ -143,7 +145,7 @@ class TestOutlineConfigMerging:
             "openai",
             "gpt-4o-mini",
             config={
-                "max_tokens": 3000,
+                "max_tokens": DEFAULT_OUTLINE_MAX_TOKENS,
                 "structured": {
                     "type": "json_schema",
                     "schema": mock_parser.pydantic_object,
@@ -206,6 +208,114 @@ class TestTranscriptConfigMerging:
                 "temperature": 0.8,
             },
         )
+
+
+class TestDefaultMaxTokens:
+    """Tests for the default output token limits"""
+
+    def test_default_values(self):
+        assert DEFAULT_OUTLINE_MAX_TOKENS == 8192
+        assert DEFAULT_TRANSCRIPT_MAX_TOKENS == 8192
+
+    @patch("podcast_creator.nodes.AIFactory")
+    @patch("podcast_creator.nodes.get_transcript_prompter")
+    @patch("podcast_creator.nodes.create_validated_transcript_parser")
+    def test_transcript_uses_default_max_tokens(
+        self, mock_parser_factory, mock_prompter, mock_factory
+    ):
+        """Test that transcript generation uses the default max_tokens without config"""
+        mock_lc = MagicMock()
+        mock_lc.ainvoke = AsyncMock(
+            return_value=MagicMock(content='{"transcript": []}')
+        )
+        mock_model = MagicMock()
+        mock_model.to_langchain.return_value = mock_lc
+        mock_factory.create_language.return_value = mock_model
+        mock_prompter.return_value.render.return_value = "prompt"
+        mock_parser = MagicMock()
+        mock_parser_factory.return_value = mock_parser
+
+        outline = MagicMock()
+        outline.segments = []
+        speaker_profile = MagicMock()
+        speaker_profile.get_speaker_names.return_value = ["Alice", "Bob"]
+
+        state = {
+            "briefing": "test",
+            "content": "content",
+            "outline": outline,
+            "speaker_profile": speaker_profile,
+        }
+
+        asyncio.run(generate_transcript_node(state, {"configurable": {}}))
+
+        mock_factory.create_language.assert_called_once_with(
+            "openai",
+            "gpt-4o-mini",
+            config={
+                "max_tokens": DEFAULT_TRANSCRIPT_MAX_TOKENS,
+                "structured": {
+                    "type": "json_schema",
+                    "schema": mock_parser.pydantic_object,
+                },
+            },
+        )
+
+
+class TestStructuredOutputOverride:
+    """Users can fall back to generic JSON mode for models without json_schema support"""
+
+    @patch("podcast_creator.nodes.AIFactory")
+    @patch("podcast_creator.nodes.get_outline_prompter")
+    @patch("podcast_creator.nodes.outline_parser")
+    def test_outline_config_can_restore_json_mode(
+        self, mock_parser, mock_prompter, mock_factory
+    ):
+        _setup_language_mocks(mock_factory, mock_prompter, mock_parser)
+        state = {
+            "briefing": "test",
+            "num_segments": 3,
+            "content": "content",
+            "speaker_profile": MagicMock(speakers=[]),
+        }
+        config = {"configurable": {"outline_config": {"structured": {"type": "json"}}}}
+
+        asyncio.run(generate_outline_node(state, config))
+
+        _, kwargs = mock_factory.create_language.call_args
+        assert kwargs["config"]["structured"] == {"type": "json"}
+
+    @patch("podcast_creator.nodes.AIFactory")
+    @patch("podcast_creator.nodes.get_transcript_prompter")
+    @patch("podcast_creator.nodes.create_validated_transcript_parser")
+    def test_transcript_config_can_restore_json_mode(
+        self, mock_parser_factory, mock_prompter, mock_factory
+    ):
+        mock_lc = MagicMock()
+        mock_lc.ainvoke = AsyncMock(return_value=MagicMock(content='{"transcript": []}'))
+        mock_model = MagicMock()
+        mock_model.to_langchain.return_value = mock_lc
+        mock_factory.create_language.return_value = mock_model
+        mock_prompter.return_value.render.return_value = "prompt"
+        mock_parser_factory.return_value = MagicMock()
+        outline = MagicMock()
+        outline.segments = []
+        speaker_profile = MagicMock()
+        speaker_profile.get_speaker_names.return_value = ["Alice", "Bob"]
+        state = {
+            "briefing": "test",
+            "content": "content",
+            "outline": outline,
+            "speaker_profile": speaker_profile,
+        }
+        config = {
+            "configurable": {"transcript_config": {"structured": {"type": "json"}}}
+        }
+
+        asyncio.run(generate_transcript_node(state, config))
+
+        _, kwargs = mock_factory.create_language.call_args
+        assert kwargs["config"]["structured"] == {"type": "json"}
 
 
 class TestLanguagePassthrough:

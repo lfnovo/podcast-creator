@@ -17,8 +17,15 @@ from .core import (
     get_transcript_prompter,
     outline_parser,
 )
+from .defaults import DEFAULT_AUDIO_GAP_MS, validate_audio_gap_ms
 from .retry import create_retry_decorator, get_retry_config
 from .state import PodcastState
+
+# Default output token limits; override via outline_config / transcript_config.
+# 8192 fits the bundled default models (gpt-4o-mini for outlines, claude-sonnet-5-5 for
+# transcripts). Models with a lower output cap need an explicit lower max_tokens.
+DEFAULT_OUTLINE_MAX_TOKENS = 8192
+DEFAULT_TRANSCRIPT_MAX_TOKENS = 8192
 
 
 async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> Dict:
@@ -32,7 +39,7 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
 
     # Create outline model
     merged_config = {
-        "max_tokens": 3000,
+        "max_tokens": DEFAULT_OUTLINE_MAX_TOKENS,
         "structured": {
             "type": "json_schema",
             "schema": outline_parser.pydantic_object,
@@ -97,7 +104,7 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
 
     # Create transcript model
     merged_config = {
-        "max_tokens": 5000,
+        "max_tokens": DEFAULT_TRANSCRIPT_MAX_TOKENS,
         "structured": {
             "type": "json_schema",
             "schema": validated_transcript_parser.pydantic_object,
@@ -291,10 +298,14 @@ async def combine_audio_node(state: PodcastState, config: RunnableConfig) -> Dic
 
     clips_dir = state["output_dir"] / "clips"
     audio_dir = state["output_dir"] / "audio"
+    gap_ms = config.get("configurable", {}).get("audio_gap_ms")
+    if gap_ms is None:
+        gap_ms = DEFAULT_AUDIO_GAP_MS
+    validate_audio_gap_ms(gap_ms)
 
     # Combine audio files
     result = await combine_audio_files(
-        clips_dir, f"{state['episode_name']}.mp3", audio_dir
+        clips_dir, f"{state['episode_name']}.mp3", audio_dir, gap_ms=gap_ms
     )
 
     final_path = Path(result["combined_audio_path"])

@@ -15,6 +15,7 @@ from .nodes import (
 from .language import resolve_language_name
 from .speakers import load_speaker_config
 from .episodes import load_episode_config
+from .defaults import validate_audio_gap_ms
 from .state import PodcastState
 
 logger.info("Creating podcast generation graph")
@@ -58,6 +59,7 @@ async def create_podcast(
     retry_max_attempts: Optional[int] = None,
     retry_wait_multiplier: Optional[int] = None,
     language: Optional[str] = None,
+    audio_gap_ms: Optional[int] = None,
 ) -> Dict:
     """
     High-level function to create a podcast using the LangGraph workflow
@@ -80,6 +82,7 @@ async def create_podcast(
         retry_max_attempts: Max retry attempts for LLM calls (default 3)
         retry_wait_multiplier: Exponential backoff multiplier in seconds (default 2)
         language: Language code for podcast generation (e.g., 'pt', 'pt-BR', 'es')
+        audio_gap_ms: Milliseconds of silence between dialogue turns (default 400, 0 disables)
 
     Returns:
         Dict with results including final audio path
@@ -98,6 +101,7 @@ async def create_podcast(
         outline_config = outline_config if outline_config is not None else episode_config.outline_config
         transcript_config = transcript_config if transcript_config is not None else episode_config.transcript_config
         language = language or episode_config.language
+        audio_gap_ms = audio_gap_ms if audio_gap_ms is not None else episode_config.audio_gap_ms
 
         # Resolve briefing with episode profile logic
         if briefing:
@@ -115,7 +119,7 @@ async def create_podcast(
         outline_provider = outline_provider or "openai"
         outline_model = outline_model or "gpt-4o-mini"
         transcript_provider = transcript_provider or "anthropic"
-        transcript_model = transcript_model or "claude-3-5-sonnet-latest"
+        transcript_model = transcript_model or "claude-sonnet-5-5"
         num_segments = num_segments or 3
         resolved_briefing = briefing or ""
     
@@ -128,6 +132,8 @@ async def create_podcast(
         raise ValueError("speaker_config is required (either directly or via episode_profile)")
     if not resolved_briefing:
         raise ValueError("briefing is required (either directly, via episode_profile, or with briefing_suffix)")
+    if audio_gap_ms is not None:
+        validate_audio_gap_ms(audio_gap_ms)
     
     # Resolve language code to name
     resolved_language = resolve_language_name(language) if language else None
@@ -163,6 +169,8 @@ async def create_podcast(
         "outline_config": outline_config,
         "transcript_config": transcript_config,
     }
+    if audio_gap_ms is not None:
+        configurable["audio_gap_ms"] = audio_gap_ms
     if retry_max_attempts is not None:
         configurable["retry_max_attempts"] = retry_max_attempts
     if retry_wait_multiplier is not None:

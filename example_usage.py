@@ -36,7 +36,7 @@ async def main():
         outline_provider="openai",
         outline_model="gpt-4o-mini",
         transcript_provider="anthropic",
-        transcript_model="claude-3-5-sonnet-latest",
+        transcript_model="claude-sonnet-5-5",
         num_segments=3
     )
     

@@ -46,7 +46,7 @@ class ContentExtractor:
             )
         
         try:
-            result = await extract_content({"url": url})
+            result = await extract_content(url=url)
             content = result.content if hasattr(result, 'content') else str(result)
             if not content or not content.strip():
                 raise Exception("No content extracted from URL")
@@ -81,7 +81,7 @@ class ContentExtractor:
             raise FileNotFoundError(f"File not found: {file_path}")
         
         try:
-            result = await extract_content({"file_path": file_path})
+            result = await extract_content(file_path=file_path)
             content = result.content if hasattr(result, 'content') else str(result)
             if not content or not content.strip():
                 raise Exception("No content extracted from file")
@@ -137,7 +137,7 @@ class ContentExtractor:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 result = loop.run_until_complete(
-                    extract_content({"file_path": tmp_file_path})
+                    extract_content(file_path=tmp_file_path)
                 )
                 loop.close()
                 content = result.content if hasattr(result, 'content') else str(result)
