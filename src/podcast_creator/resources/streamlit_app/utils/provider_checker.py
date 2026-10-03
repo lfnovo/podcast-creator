@@ -111,21 +111,21 @@ class ProviderChecker:
                 "tts": "tts-1"
             },
             "anthropic": {
-                "outline": "claude-3-5-sonnet-20241022",
-                "transcript": "claude-3-5-sonnet-20241022"
+                "outline": "claude-sonnet-5-5",
+                "transcript": "claude-sonnet-5-5"
             },
             "gemini": {
-                "outline": "gemini-1.5-pro",
-                "transcript": "gemini-1.5-pro"
+                "outline": "gemini-2.5-flash",
+                "transcript": "gemini-2.5-pro"
             },
             "google": {
-                "outline": "gemini-1.5-pro",
-                "transcript": "gemini-1.5-pro",
+                "outline": "gemini-2.5-flash",
+                "transcript": "gemini-2.5-pro",
                 "tts": "standard"
             },
             "groq": {
-                "outline": "llama-3.1-70b-versatile",
-                "transcript": "llama-3.1-70b-versatile"
+                "outline": "openai/gpt-oss-120b",
+                "transcript": "openai/gpt-oss-120b"
             },
             "ollama": {
                 "outline": "llama3.1",
