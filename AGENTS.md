@@ -112,6 +112,7 @@ Each node in the workflow:
 - **ai-prompter**: Template management
 - **content-core**: Content extraction from files/URLs
 - **tenacity**: Retry with exponential backoff
+- **pydub**: Audio metadata in the Streamlit UI
 - **ffmpeg** (bundled via `imageio-ffmpeg`): Audio combining (single-process concat filter)
 
 This architecture enables flexible, scalable podcast generation while maintaining clean separation of concerns through configuration-driven design.

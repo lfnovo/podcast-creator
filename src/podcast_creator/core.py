@@ -262,14 +262,24 @@ OUT_TIME_PATTERN = re.compile(r"^out_time_us=(\d+)$", re.MULTILINE)
 
 
 async def _run_ffmpeg(args: List[str]) -> Tuple[int, str, str]:
-    """Run ffmpeg with the given arguments and return (returncode, stdout, stderr)."""
+    """Run ffmpeg with the given arguments and return (returncode, stdout, stderr).
+
+    The child never reads the parent's stdin and is killed if the caller is cancelled.
+    """
     process = await asyncio.create_subprocess_exec(
         get_ffmpeg_exe(),
         *args,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await process.communicate()
+    try:
+        stdout, stderr = await process.communicate()
+    except asyncio.CancelledError:
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
+        raise
     return (
         process.returncode if process.returncode is not None else -1,
         stdout.decode(errors="replace"),
@@ -279,7 +289,7 @@ async def _run_ffmpeg(args: List[str]) -> Tuple[int, str, str]:
 
 async def _probe_audio_format(file_path: Path) -> Optional[Tuple[int, str]]:
     """Return (sample_rate, channel_layout) of the first audio stream, if detectable."""
-    _, _, stderr = await _run_ffmpeg(["-hide_banner", "-i", str(file_path)])
+    _, _, stderr = await _run_ffmpeg(["-hide_banner", "-nostdin", "-i", str(file_path)])
     match = AUDIO_STREAM_PATTERN.search(stderr)
     if not match:
         return None
@@ -356,44 +366,48 @@ async def combine_audio_files(
 
     output_path = final_output_dir / output_filename
 
-    audio_format = await _probe_audio_format(clip_paths[0])
-    if audio_format is None:
-        logger.warning(
-            f"combine_audio_files: could not detect audio format of {clip_paths[0]}; "
-            "concatenating without normalization"
-        )
-
-    args = ["-hide_banner", "-nostdin", "-y"]
-    for clip_path in clip_paths:
-        args += ["-i", str(clip_path)]
-    args += [
-        "-filter_complex",
-        _build_concat_filter(len(clip_paths), audio_format),
-        "-map",
-        "[out]",
-        "-c:a",
-        "libmp3lame",
-        "-b:a",
-        "128k",
-        "-progress",
-        "pipe:1",
-        "-nostats",
-        str(output_path),
-    ]
-
+    succeeded = False
     try:
-        returncode, stdout, stderr = await _run_ffmpeg(args)
-    except OSError as e:
-        output_path.unlink(missing_ok=True)
-        raise RuntimeError(f"combine_audio_files: failed to start ffmpeg: {e}") from e
+        audio_format = await _probe_audio_format(clip_paths[0])
+        if audio_format is None:
+            logger.warning(
+                f"combine_audio_files: could not detect audio format of {clip_paths[0]}; "
+                "concatenating without normalization"
+            )
 
-    if returncode != 0:
-        output_path.unlink(missing_ok=True)
-        error_tail = "\n".join(stderr.strip().splitlines()[-20:])
-        raise RuntimeError(
-            f"combine_audio_files: ffmpeg exited with code {returncode} while "
-            f"combining {len(clip_paths)} clips:\n{error_tail}"
-        )
+        args = ["-hide_banner", "-nostdin", "-y"]
+        for clip_path in clip_paths:
+            args += ["-i", str(clip_path)]
+        args += [
+            "-filter_complex",
+            _build_concat_filter(len(clip_paths), audio_format),
+            "-map",
+            "[out]",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            "-progress",
+            "pipe:1",
+            "-nostats",
+            str(output_path),
+        ]
+
+        returncode, stdout, stderr = await _run_ffmpeg(args)
+
+        if returncode != 0:
+            error_tail = "\n".join(stderr.strip().splitlines()[-20:])
+            raise RuntimeError(
+                f"combine_audio_files: ffmpeg exited with code {returncode} while "
+                f"combining {len(clip_paths)} clips:\n{error_tail}"
+            )
+        succeeded = True
+    except OSError as e:
+        raise RuntimeError(f"combine_audio_files: failed to run ffmpeg: {e}") from e
+    finally:
+        # Remove partial output on any failure, including cancellation
+        if not succeeded:
+            output_path.unlink(missing_ok=True)
 
     out_times = OUT_TIME_PATTERN.findall(stdout)
     total_duration = int(out_times[-1]) / 1_000_000 if out_times else None
