@@ -20,6 +20,13 @@ from .core import (
 from .retry import create_retry_decorator, get_retry_config
 from .state import PodcastState
 
+# Default output token limits; override via outline_config / transcript_config.
+# 8192 fits the bundled default models (gpt-4o-mini for outlines, claude-3-5-sonnet for
+# transcripts, whose 8192 output cap Anthropic enforces with HTTP 400). Legacy models
+# with a 4096 output cap (e.g. Claude 3 family) need an explicit lower max_tokens.
+DEFAULT_OUTLINE_MAX_TOKENS = 8192
+DEFAULT_TRANSCRIPT_MAX_TOKENS = 8192
+
 
 async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> Dict:
     """Generate podcast outline from content and briefing"""
@@ -32,7 +39,7 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
 
     # Create outline model
     merged_config = {
-        "max_tokens": 3000,
+        "max_tokens": DEFAULT_OUTLINE_MAX_TOKENS,
         "structured": {"type": "json"},
         **outline_config,
     }
@@ -88,7 +95,7 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
 
     # Create transcript model
     merged_config = {
-        "max_tokens": 5000,
+        "max_tokens": DEFAULT_TRANSCRIPT_MAX_TOKENS,
         "structured": {"type": "json"},
         **transcript_config,
     }
