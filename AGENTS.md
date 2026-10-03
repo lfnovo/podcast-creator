@@ -1,6 +1,8 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents when working with code in this repository.
+
+Maintainer profile lives in `.maintainer/`; do not run release, triage or discussions workflows without it.
 
 ## Build and Development Commands
 
