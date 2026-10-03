@@ -354,8 +354,9 @@ async def combine_audio_files(
         gap_ms: Milliseconds of silence inserted between consecutive clips (0 disables).
 
     Returns:
-        Dict with "combined_audio_path", "original_segments_count" and
-        "total_duration_seconds".
+        Dict with "combined_audio_path", "original_segments_count",
+        "total_duration_seconds" and "gap_ms" (the gap actually inserted; 0 when the
+        first clip's format could not be detected or there is a single clip).
 
     Raises:
         ValueError: If there are no clips to combine or ``gap_ms`` is negative.
@@ -443,4 +444,5 @@ async def combine_audio_files(
         "combined_audio_path": str(output_path.resolve()),
         "original_segments_count": len(clip_paths),
         "total_duration_seconds": total_duration,
+        "gap_ms": gap_ms if audio_format and len(clip_paths) > 1 else 0,
     }

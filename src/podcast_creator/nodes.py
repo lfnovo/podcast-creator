@@ -286,7 +286,11 @@ async def combine_audio_node(state: PodcastState, config: RunnableConfig) -> Dic
 
     clips_dir = state["output_dir"] / "clips"
     audio_dir = state["output_dir"] / "audio"
-    gap_ms = config.get("configurable", {}).get("audio_gap_ms", DEFAULT_AUDIO_GAP_MS)
+    gap_ms = config.get("configurable", {}).get("audio_gap_ms")
+    if gap_ms is None:
+        gap_ms = DEFAULT_AUDIO_GAP_MS
+    if isinstance(gap_ms, bool) or not isinstance(gap_ms, int) or gap_ms < 0:
+        raise ValueError(f"audio_gap_ms must be a non-negative integer, got {gap_ms!r}")
 
     # Combine audio files
     result = await combine_audio_files(
