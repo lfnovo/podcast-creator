@@ -19,7 +19,7 @@ class TestEpisodeProfile:
             outline_provider="openai",
             outline_model="gpt-4o-mini",
             transcript_provider="anthropic",
-            transcript_model="claude-3-5-sonnet-latest",
+            transcript_model="claude-sonnet-5-5",
             default_briefing="Test briefing",
             num_segments=3
         )
@@ -28,7 +28,7 @@ class TestEpisodeProfile:
         assert profile.outline_provider == "openai"
         assert profile.outline_model == "gpt-4o-mini"
         assert profile.transcript_provider == "anthropic"
-        assert profile.transcript_model == "claude-3-5-sonnet-latest"
+        assert profile.transcript_model == "claude-sonnet-5-5"
         assert profile.default_briefing == "Test briefing"
         assert profile.num_segments == 3
 
@@ -40,7 +40,7 @@ class TestEpisodeProfile:
         assert profile.outline_provider == "openai"
         assert profile.outline_model == "gpt-4o-mini"
         assert profile.transcript_provider == "anthropic"
-        assert profile.transcript_model == "claude-3-5-sonnet-latest"
+        assert profile.transcript_model == "claude-sonnet-5-5"
         assert profile.default_briefing == ""
         assert profile.num_segments == 3
         assert profile.outline_config is None
@@ -233,7 +233,7 @@ class TestLoadEpisodeConfig:
         assert profile.outline_provider == "openai"
         assert profile.outline_model == "gpt-4o-mini"
         assert profile.transcript_provider == "anthropic"
-        assert profile.transcript_model == "claude-3-5-sonnet-latest"
+        assert profile.transcript_model == "claude-sonnet-5-5"
         assert profile.num_segments == 4
         assert "engaging and informative discussion" in profile.default_briefing.lower()
 
@@ -260,7 +260,7 @@ class TestLoadEpisodeConfig:
                     "outline_provider": "openai",
                     "outline_model": "gpt-4o-mini",
                     "transcript_provider": "anthropic",
-                    "transcript_model": "claude-3-5-sonnet-latest",
+                    "transcript_model": "claude-sonnet-5-5",
                     "default_briefing": "Inline test briefing",
                     "num_segments": 5
                 }

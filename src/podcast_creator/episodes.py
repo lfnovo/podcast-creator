@@ -19,7 +19,7 @@ class EpisodeProfile(BaseModel):
         "anthropic", description="Provider for transcript generation"
     )
     transcript_model: str = Field(
-        "claude-3-5-sonnet-latest", description="Model for transcript generation"
+        "claude-sonnet-5-5", description="Model for transcript generation"
     )
     default_briefing: str = Field(
         "", description="Default briefing for this episode type"

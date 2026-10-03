@@ -517,10 +517,10 @@ In this example, Dr. Sarah Chen uses ElevenLabs while Marcus Rivera uses the pro
 
 ### Language Models (via Esperanto)
 
-- **OpenAI**: GPT-4, GPT-4o, o1, o3
-- **Anthropic**: Claude 3.5 Sonnet, Claude 3 Opus
-- **Google**: Gemini Pro, Gemini Flash
-- **Groq**: Mixtral, Llama models
+- **OpenAI**: GPT-4o and newer GPT / o-series models
+- **Anthropic**: Claude Sonnet 5.5, Claude Opus 5.5
+- **Google / Vertex AI**: Gemini 2.5 Pro, Gemini 2.5 Flash
+- **Groq**: GPT-OSS, Llama models
 - **Ollama**: Local model support
 - **Perplexity**: Research-enhanced models
 - **Azure OpenAI**: Enterprise OpenAI
@@ -528,13 +528,18 @@ In this example, Dr. Sarah Chen uses ElevenLabs while Marcus Rivera uses the pro
 - **DeepSeek**: DeepSeek models
 - **xAI**: Grok models
 - **OpenRouter**: Multi-provider access
+- **Cohere, DashScope (Qwen), MiniMax, Z.ai, SiliconFlow, Novita, PayPerQ** and any OpenAI-compatible endpoint (vLLM, LM Studio, ...)
 
 ### Text-to-Speech Services
 
 - **ElevenLabs**: Professional voice synthesis
 - **OpenAI TTS**: High-quality voices
-- **Google**: Google Cloud TTS
-- **Vertex AI**: Google Cloud enterprise
+- **Google (Gemini TTS)** and **Vertex AI**
+- **Azure OpenAI**
+- **Deepgram** (Aura), **Mistral** (Voxtral), **MiniMax**, **xAI**
+- **OpenRouter**, **PayPerQ** and OpenAI-compatible TTS servers (e.g. Speaches/Kokoro)
+
+See the [Esperanto provider docs](https://github.com/lfnovo/esperanto) for the full, current list.
 
 ## 📁 Output Structure
 

@@ -11,11 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable silence between dialogue turns in the combined audio: `audio_gap_ms` on episode profiles and `create_podcast()` (default 400 ms, `0` disables) (#37)
 
 ### Fixed
+- Streamlit UI URL and file extraction works with content-core 2.x, whose `extract_content()` takes keyword arguments
 - Combining audio no longer truncates speech when TTS-generated MP3 clips declare an inaccurate duration in their headers; clips are now decoded to their real end (#41, #42)
 - Combining audio now uses a single ffmpeg process regardless of the number of clips, fixing `[Errno 11] Resource temporarily unavailable` on long episodes in hosts with process limits (#42)
 - `combine_audio_files` raises `ValueError` / `RuntimeError` on failure instead of returning an `"ERROR: ..."` string, so `create_podcast()` no longer reports a failed episode as a file path (#44)
 
 ### Changed
+- Minimum dependency versions raised to `esperanto>=2.28.0` and `content-core>=2.2.0`
+- Default transcript model changed from `claude-3-5-sonnet-latest` to `claude-sonnet-5-5` in `create_podcast()`, `EpisodeProfile` and all bundled episode profiles: Anthropic has retired the Claude 3 family, so the previous default failed on every request
+- Streamlit UI default models updated for retired ones (Anthropic → `claude-sonnet-5-5`, Gemini → `gemini-2.5-flash` / `gemini-2.5-pro`, Groq → `openai/gpt-oss-120b`)
 - Audio combining uses ffmpeg's concat filter (via the ffmpeg binary bundled with `imageio-ffmpeg`) instead of MoviePy; clips with different sample rates or channel layouts are normalized to the first clip's format
 - `moviepy` is no longer a direct dependency; `imageio-ffmpeg` is
 - Default `max_tokens` raised from 3000 to 8192 for outline generation and from 5000 to 8192 for transcript generation, avoiding truncated outlines and malformed transcript JSON with dense content (#34). Override via `outline_config` / `transcript_config`

@@ -119,7 +119,7 @@ async def create_podcast(
         outline_provider = outline_provider or "openai"
         outline_model = outline_model or "gpt-4o-mini"
         transcript_provider = transcript_provider or "anthropic"
-        transcript_model = transcript_model or "claude-3-5-sonnet-latest"
+        transcript_model = transcript_model or "claude-sonnet-5-5"
         num_segments = num_segments or 3
         resolved_briefing = briefing or ""
     
