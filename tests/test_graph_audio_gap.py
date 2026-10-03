@@ -67,8 +67,24 @@ class TestAudioGapResolution:
 
     @pytest.mark.parametrize("value", [-1, 1.5, True])
     def test_invalid_argument_rejected_before_generation(self, tmp_path, value):
-        with pytest.raises(ValueError, match="audio_gap_ms"):
-            _run(tmp_path, audio_gap_ms=value)
+        fake_graph = MagicMock()
+        fake_graph.ainvoke = AsyncMock()
+        with patch("podcast_creator.graph.graph", fake_graph), patch(
+            "podcast_creator.graph.load_speaker_config", return_value=MagicMock()
+        ):
+            with pytest.raises(ValueError, match="audio_gap_ms"):
+                asyncio.run(
+                    create_podcast(
+                        content="content",
+                        episode_name="episode",
+                        output_dir=str(tmp_path),
+                        speaker_config="speakers",
+                        briefing="briefing",
+                        audio_gap_ms=value,
+                    )
+                )
+
+        fake_graph.ainvoke.assert_not_called()
 
     def test_negative_profile_value_rejected(self):
         with pytest.raises(ValidationError):
