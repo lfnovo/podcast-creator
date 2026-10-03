@@ -4,6 +4,8 @@ from typing import Any, Dict, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
+from .defaults import DEFAULT_AUDIO_GAP_MS
+
 
 class EpisodeProfile(BaseModel):
     """Individual episode profile configuration"""
@@ -31,6 +33,11 @@ class EpisodeProfile(BaseModel):
     )
     transcript_config: Optional[Dict[str, Any]] = Field(
         None, description="Config dict passed to AIFactory.create_language() for transcript generation"
+    )
+    audio_gap_ms: int = Field(
+        DEFAULT_AUDIO_GAP_MS,
+        ge=0,
+        description="Milliseconds of silence inserted between dialogue turns",
     )
 
     @field_validator("speaker_config")
