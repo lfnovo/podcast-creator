@@ -258,6 +258,9 @@ transcript_prompt = get_transcript_prompter()
 # Legacy functions removed - use create_podcast from graph.py instead
 
 
+# Silence inserted between consecutive clips when combining audio
+DEFAULT_AUDIO_GAP_MS = 400
+
 AUDIO_STREAM_PATTERN = re.compile(r"Audio: [^,]+, (\d+) Hz, ([^,]+),")
 OUT_TIME_PATTERN = re.compile(r"^out_time_us=(\d+)$", re.MULTILINE)
 
@@ -299,14 +302,14 @@ async def _probe_audio_format(file_path: Path) -> Optional[Tuple[int, str]]:
 
 
 def _build_concat_filter(
-    num_inputs: int, audio_format: Optional[Tuple[int, str]]
+    num_inputs: int, audio_format: Optional[Tuple[int, str]], gap_ms: int = 0
 ) -> str:
     """Build a filter graph that resets each input's timestamps and concatenates them.
 
     Resetting PTS per input makes the concat follow the decoded audio instead of the
     (often inaccurate) duration declared in TTS-generated MP3 headers. When the format of
     the first clip is known, every input is normalized to it so clips from different TTS
-    providers can be concatenated.
+    providers can be concatenated, and ``gap_ms`` of silence is inserted between clips.
     """
     normalize = ""
     if audio_format:
@@ -316,12 +319,27 @@ def _build_concat_filter(
             f"aformat=sample_rates={sample_rate}:channel_layouts={layout},"
         )
     chains = [f"[{i}:a]{normalize}asetpts=PTS-STARTPTS[a{i}]" for i in range(num_inputs)]
-    labels = "".join(f"[a{i}]" for i in range(num_inputs))
-    return ";".join(chains) + f";{labels}concat=n={num_inputs}:v=0:a=1[out]"
+    labels = [f"[a{i}]" for i in range(num_inputs)]
+
+    if gap_ms > 0 and audio_format and num_inputs > 1:
+        sample_rate, layout = audio_format
+        interleaved = []
+        for i in range(num_inputs - 1):
+            chains.append(
+                f"anullsrc=r={sample_rate}:cl={layout},"
+                f"atrim=duration={gap_ms / 1000},asetpts=PTS-STARTPTS[s{i}]"
+            )
+            interleaved += [labels[i], f"[s{i}]"]
+        labels = interleaved + [labels[-1]]
+
+    return ";".join(chains) + f";{''.join(labels)}concat=n={len(labels)}:v=0:a=1[out]"
 
 
 async def combine_audio_files(
-    audio_dir: Union[Path, str], final_filename: str, final_output_dir: Union[Path, str]
+    audio_dir: Union[Path, str],
+    final_filename: str,
+    final_output_dir: Union[Path, str],
+    gap_ms: int = DEFAULT_AUDIO_GAP_MS,
 ) -> Dict[str, Any]:
     """
     Combine every .mp3 clip in ``audio_dir`` (sorted by name) into a single MP3 file.
@@ -334,16 +352,19 @@ async def combine_audio_files(
         audio_dir: Directory containing the clips to combine.
         final_filename: Name of the output file; ".mp3" is appended when missing.
         final_output_dir: Directory where the combined file is written.
+        gap_ms: Milliseconds of silence inserted between consecutive clips (0 disables).
 
     Returns:
         Dict with "combined_audio_path", "original_segments_count" and
         "total_duration_seconds".
 
     Raises:
-        ValueError: If there are no clips to combine.
+        ValueError: If there are no clips to combine or ``gap_ms`` is negative.
         RuntimeError: If ffmpeg fails to combine the clips.
     """
     logger.info("[Core Function] combine_audio_files called.")
+    if gap_ms < 0:
+        raise ValueError(f"combine_audio_files: gap_ms must be >= 0, got {gap_ms}")
     audio_dir = Path(audio_dir)
     final_output_dir = Path(final_output_dir)
     clip_paths = sorted(p for p in audio_dir.glob("*.mp3") if p.is_file())
@@ -375,7 +396,7 @@ async def combine_audio_files(
         if audio_format is None:
             logger.warning(
                 f"combine_audio_files: could not detect audio format of {clip_paths[0]}; "
-                "concatenating without normalization"
+                "concatenating without normalization or gaps"
             )
 
         args = ["-hide_banner", "-nostdin", "-y"]
@@ -383,7 +404,7 @@ async def combine_audio_files(
             args += ["-i", str(clip_path)]
         args += [
             "-filter_complex",
-            _build_concat_filter(len(clip_paths), audio_format),
+            _build_concat_filter(len(clip_paths), audio_format, gap_ms),
             "-map",
             "[out]",
             "-c:a",

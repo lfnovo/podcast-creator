@@ -58,6 +58,7 @@ async def create_podcast(
     retry_max_attempts: Optional[int] = None,
     retry_wait_multiplier: Optional[int] = None,
     language: Optional[str] = None,
+    audio_gap_ms: Optional[int] = None,
 ) -> Dict:
     """
     High-level function to create a podcast using the LangGraph workflow
@@ -80,6 +81,7 @@ async def create_podcast(
         retry_max_attempts: Max retry attempts for LLM calls (default 3)
         retry_wait_multiplier: Exponential backoff multiplier in seconds (default 2)
         language: Language code for podcast generation (e.g., 'pt', 'pt-BR', 'es')
+        audio_gap_ms: Milliseconds of silence between dialogue turns (default 400, 0 disables)
 
     Returns:
         Dict with results including final audio path
@@ -98,6 +100,7 @@ async def create_podcast(
         outline_config = outline_config if outline_config is not None else episode_config.outline_config
         transcript_config = transcript_config if transcript_config is not None else episode_config.transcript_config
         language = language or episode_config.language
+        audio_gap_ms = audio_gap_ms if audio_gap_ms is not None else episode_config.audio_gap_ms
 
         # Resolve briefing with episode profile logic
         if briefing:
@@ -128,6 +131,8 @@ async def create_podcast(
         raise ValueError("speaker_config is required (either directly or via episode_profile)")
     if not resolved_briefing:
         raise ValueError("briefing is required (either directly, via episode_profile, or with briefing_suffix)")
+    if audio_gap_ms is not None and audio_gap_ms < 0:
+        raise ValueError("audio_gap_ms must be >= 0")
     
     # Resolve language code to name
     resolved_language = resolve_language_name(language) if language else None
@@ -163,6 +168,8 @@ async def create_podcast(
         "outline_config": outline_config,
         "transcript_config": transcript_config,
     }
+    if audio_gap_ms is not None:
+        configurable["audio_gap_ms"] = audio_gap_ms
     if retry_max_attempts is not None:
         configurable["retry_max_attempts"] = retry_max_attempts
     if retry_wait_multiplier is not None:

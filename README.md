@@ -186,7 +186,8 @@ configure("episode_config", {
             "speaker_config": "business_analysts",
             "outline_model": "gpt-4o",
             "default_briefing": "Create an engaging startup pitch...",
-            "num_segments": 6
+            "num_segments": 6,
+            "audio_gap_ms": 500  # optional pause between turns (default 400, 0 disables)
         }
     }
 })
@@ -610,6 +611,20 @@ This is particularly useful for:
 - **ElevenLabs Free Plan**: Limited to 2 concurrent requests
 - **Other TTS providers** with stricter rate limits
 - **Debugging**: Set to 1 for sequential processing
+
+### ⏸️ Pauses Between Turns
+
+When combining clips, a short silence is inserted between dialogue turns so speakers don't talk over each other. The default is `400` ms; set `audio_gap_ms` on the episode profile or pass it to `create_podcast()` (the argument wins), and use `0` to disable it:
+
+```python
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="tech_discussion",
+    episode_name="my_podcast",
+    output_dir="output/my_podcast",
+    audio_gap_ms=600,
+)
+```
 
 ### 🔁 Retry Configuration
 
