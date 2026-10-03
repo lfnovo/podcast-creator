@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import re
 import uuid
 from pathlib import Path
@@ -365,6 +366,8 @@ async def combine_audio_files(
         )
 
     output_path = final_output_dir / output_filename
+    # Write to a temporary file so a failed run never touches an existing episode
+    temp_path = final_output_dir / f".{output_filename}.{uuid.uuid4().hex}.tmp"
 
     succeeded = False
     try:
@@ -390,7 +393,9 @@ async def combine_audio_files(
             "-progress",
             "pipe:1",
             "-nostats",
-            str(output_path),
+            "-f",
+            "mp3",
+            str(temp_path),
         ]
 
         returncode, stdout, stderr = await _run_ffmpeg(args)
@@ -401,13 +406,14 @@ async def combine_audio_files(
                 f"combine_audio_files: ffmpeg exited with code {returncode} while "
                 f"combining {len(clip_paths)} clips:\n{error_tail}"
             )
+        os.replace(temp_path, output_path)
         succeeded = True
     except OSError as e:
         raise RuntimeError(f"combine_audio_files: failed to run ffmpeg: {e}") from e
     finally:
         # Remove partial output on any failure, including cancellation
         if not succeeded:
-            output_path.unlink(missing_ok=True)
+            temp_path.unlink(missing_ok=True)
 
     out_times = OUT_TIME_PATTERN.findall(stdout)
     total_duration = int(out_times[-1]) / 1_000_000 if out_times else None

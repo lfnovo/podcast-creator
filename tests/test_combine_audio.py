@@ -6,6 +6,7 @@ import array
 import asyncio
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -200,7 +201,7 @@ class TestCombineAudioFiles:
         with pytest.raises(RuntimeError, match="ffmpeg exited with code"):
             asyncio.run(combine_audio_files(clips, "episode", tmp_path / "audio"))
 
-        assert not (tmp_path / "audio" / "episode.mp3").exists()
+        assert list((tmp_path / "audio").iterdir()) == []
 
 
     def test_raises_runtime_error_when_ffmpeg_cannot_start(self, tmp_path, monkeypatch):
@@ -228,7 +229,9 @@ class TestCombineAudioFiles:
                 return await original(*args, **kwargs)
             # Stand-in for a long combine: write partial output, then hang
             Path(args[-1]).write_bytes(b"partial")
-            process = await original("sleep", "30", **kwargs)
+            process = await original(
+                sys.executable, "-c", "import time; time.sleep(30)", **kwargs
+            )
             processes.append(process)
             return process
 
@@ -247,7 +250,22 @@ class TestCombineAudioFiles:
         asyncio.run(run_and_cancel())
 
         assert processes[0].returncode is not None
-        assert not (tmp_path / "audio" / "episode.mp3").exists()
+        assert list((tmp_path / "audio").iterdir()) == []
+
+    def test_failure_keeps_existing_episode(self, tmp_path):
+        clips = tmp_path / "clips"
+        clips.mkdir()
+        make_tone(clips / "0000.mp3", 0.5)
+        (clips / "0001.mp3").write_bytes(b"not an mp3 file")
+        existing = tmp_path / "audio" / "episode.mp3"
+        existing.parent.mkdir()
+        existing.write_bytes(b"previous episode")
+
+        with pytest.raises(RuntimeError):
+            asyncio.run(combine_audio_files(clips, "episode", tmp_path / "audio"))
+
+        assert existing.read_bytes() == b"previous episode"
+        assert list(existing.parent.iterdir()) == [existing]
 
 
 class TestCombineAudioNode:
