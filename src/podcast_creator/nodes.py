@@ -17,7 +17,7 @@ from .core import (
     get_transcript_prompter,
     outline_parser,
 )
-from .defaults import DEFAULT_AUDIO_GAP_MS
+from .defaults import DEFAULT_AUDIO_GAP_MS, validate_audio_gap_ms
 from .retry import create_retry_decorator, get_retry_config
 from .state import PodcastState
 
@@ -289,8 +289,7 @@ async def combine_audio_node(state: PodcastState, config: RunnableConfig) -> Dic
     gap_ms = config.get("configurable", {}).get("audio_gap_ms")
     if gap_ms is None:
         gap_ms = DEFAULT_AUDIO_GAP_MS
-    if isinstance(gap_ms, bool) or not isinstance(gap_ms, int) or gap_ms < 0:
-        raise ValueError(f"audio_gap_ms must be a non-negative integer, got {gap_ms!r}")
+    validate_audio_gap_ms(gap_ms)
 
     # Combine audio files
     result = await combine_audio_files(

@@ -15,6 +15,7 @@ from .nodes import (
 from .language import resolve_language_name
 from .speakers import load_speaker_config
 from .episodes import load_episode_config
+from .defaults import validate_audio_gap_ms
 from .state import PodcastState
 
 logger.info("Creating podcast generation graph")
@@ -131,8 +132,8 @@ async def create_podcast(
         raise ValueError("speaker_config is required (either directly or via episode_profile)")
     if not resolved_briefing:
         raise ValueError("briefing is required (either directly, via episode_profile, or with briefing_suffix)")
-    if audio_gap_ms is not None and audio_gap_ms < 0:
-        raise ValueError("audio_gap_ms must be >= 0")
+    if audio_gap_ms is not None:
+        validate_audio_gap_ms(audio_gap_ms)
     
     # Resolve language code to name
     resolved_language = resolve_language_name(language) if language else None

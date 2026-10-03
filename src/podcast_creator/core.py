@@ -11,7 +11,7 @@ from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 
-from .defaults import DEFAULT_AUDIO_GAP_MS
+from .defaults import DEFAULT_AUDIO_GAP_MS, validate_audio_gap_ms
 
 # Compile regex pattern once for better performance
 THINK_PATTERN = re.compile(r"<think>(.*?)</think>", re.DOTALL)
@@ -363,8 +363,7 @@ async def combine_audio_files(
         RuntimeError: If ffmpeg fails to combine the clips.
     """
     logger.info("[Core Function] combine_audio_files called.")
-    if gap_ms < 0:
-        raise ValueError(f"combine_audio_files: gap_ms must be >= 0, got {gap_ms}")
+    validate_audio_gap_ms(gap_ms)
     audio_dir = Path(audio_dir)
     final_output_dir = Path(final_output_dir)
     clip_paths = sorted(p for p in audio_dir.glob("*.mp3") if p.is_file())

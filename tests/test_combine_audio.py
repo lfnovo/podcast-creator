@@ -255,13 +255,16 @@ class TestCombineAudioFiles:
             2.0, abs=0.15
         )
 
-    def test_rejects_negative_gap(self, tmp_path):
+    @pytest.mark.parametrize("gap_ms", [-1, 1.5, True, "400"])
+    def test_rejects_invalid_gap(self, tmp_path, gap_ms):
         clips = tmp_path / "clips"
         clips.mkdir()
         make_tone(clips / "0000.mp3", 0.5)
 
         with pytest.raises(ValueError, match="gap_ms"):
-            asyncio.run(combine_audio_files(clips, "episode", tmp_path / "audio", gap_ms=-1))
+            asyncio.run(
+                combine_audio_files(clips, "episode", tmp_path / "audio", gap_ms=gap_ms)
+            )
 
     def test_raises_when_no_clips(self, tmp_path):
         clips = tmp_path / "clips"

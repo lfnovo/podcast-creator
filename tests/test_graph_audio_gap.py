@@ -65,9 +65,10 @@ class TestAudioGapResolution:
         configurable = _run(tmp_path)
         assert "audio_gap_ms" not in configurable
 
-    def test_negative_argument_rejected(self, tmp_path):
+    @pytest.mark.parametrize("value", [-1, 1.5, True])
+    def test_invalid_argument_rejected_before_generation(self, tmp_path, value):
         with pytest.raises(ValueError, match="audio_gap_ms"):
-            _run(tmp_path, audio_gap_ms=-1)
+            _run(tmp_path, audio_gap_ms=value)
 
     def test_negative_profile_value_rejected(self):
         with pytest.raises(ValidationError):
