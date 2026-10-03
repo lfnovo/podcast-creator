@@ -652,6 +652,21 @@ result = await create_podcast(
 
 To disable retries entirely, set `PODCAST_RETRY_MAX_ATTEMPTS=1`.
 
+### 📏 LLM Output Limits
+
+Outline and transcript generation request up to `8192` output tokens by default (the output cap of the default transcript model, Claude 3.5 Sonnet). If your model has a lower output limit (some legacy models cap at 4096), or supports more and you need more room, override `max_tokens` via `outline_config` / `transcript_config`, either in `create_podcast()` or in the episode profile:
+
+```python
+result = await create_podcast(
+    content="Your content...",
+    episode_profile="tech_discussion",
+    episode_name="my_podcast",
+    output_dir="output/my_podcast",
+    outline_config={"max_tokens": 4096},
+    transcript_config={"max_tokens": 4096},
+)
+```
+
 ### 🌐 Proxy Configuration
 
 If you're behind a corporate firewall or need to route requests through a proxy, use standard environment variables:

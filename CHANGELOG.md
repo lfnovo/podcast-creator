@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Audio combining uses ffmpeg's concat filter (via the ffmpeg binary bundled with `imageio-ffmpeg`) instead of MoviePy; clips with different sample rates or channel layouts are normalized to the first clip's format
 - `moviepy` is no longer a direct dependency; `imageio-ffmpeg` is
+- Default `max_tokens` raised from 3000 to 8192 for outline generation and from 5000 to 8192 for transcript generation, avoiding truncated outlines and malformed transcript JSON with dense content (#34). Override via `outline_config` / `transcript_config`
 - The combined episode now has a 400 ms pause between turns by default; pass `audio_gap_ms=0` for the previous back-to-back output
 - **Breaking for callers of `combine_audio_files`:** code that checked `combined_audio_path` for an `"ERROR:"` prefix must catch exceptions instead
 
