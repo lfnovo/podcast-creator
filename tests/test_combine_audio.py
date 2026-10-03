@@ -107,7 +107,9 @@ class TestCombineAudioFiles:
         for i, seconds in enumerate([1.0, 2.0, 1.5]):
             make_tone(clips / f"{i:04d}.mp3", seconds)
 
-        result = asyncio.run(combine_audio_files(clips, "episode", tmp_path / "audio"))
+        result = asyncio.run(
+            combine_audio_files(clips, "episode", tmp_path / "audio", gap_ms=0)
+        )
 
         output = Path(result["combined_audio_path"])
         assert output == (tmp_path / "audio" / "episode.mp3").resolve()
@@ -143,7 +145,9 @@ class TestCombineAudioFiles:
         real = decoded_duration(first)
         assert header_duration(first) < real - 1.5, "fixture must have a misleading header"
 
-        result = asyncio.run(combine_audio_files(clips, "episode.mp3", tmp_path / "audio"))
+        result = asyncio.run(
+            combine_audio_files(clips, "episode.mp3", tmp_path / "audio", gap_ms=0)
+        )
 
         assert decoded_duration(Path(result["combined_audio_path"])) == pytest.approx(
             2 * real, abs=0.2
@@ -169,8 +173,9 @@ class TestCombineAudioFiles:
 
         assert len(calls) == 2  # one format probe + one combine
         assert result["original_segments_count"] == 30
+        # 30 clips of 0.2s plus 29 default gaps of 0.4s
         assert decoded_duration(Path(result["combined_audio_path"])) == pytest.approx(
-            6.0, abs=0.3
+            6.0 + 29 * 0.4, abs=0.4
         )
 
     def test_normalizes_clips_with_different_formats(self, tmp_path):
@@ -179,11 +184,60 @@ class TestCombineAudioFiles:
         make_tone(clips / "0000.mp3", 1.0, rate=22050, layout="mono")
         make_tone(clips / "0001.mp3", 1.0, rate=44100, layout="stereo")
 
-        result = asyncio.run(combine_audio_files(clips, "episode", tmp_path / "audio"))
+        result = asyncio.run(
+            combine_audio_files(clips, "episode", tmp_path / "audio", gap_ms=0)
+        )
 
         output = Path(result["combined_audio_path"])
         assert decoded_duration(output) == pytest.approx(2.0, abs=0.15)
         assert "22050 Hz, mono" in stream_info(output)
+
+    @pytest.mark.parametrize("gap_ms", [400, 1000])
+    def test_inserts_silence_between_clips(self, tmp_path, gap_ms):
+        clips = tmp_path / "clips"
+        clips.mkdir()
+        for i in range(3):
+            make_tone(clips / f"{i:04d}.mp3", 1.0)
+
+        result = asyncio.run(
+            combine_audio_files(clips, "episode", tmp_path / "audio", gap_ms=gap_ms)
+        )
+
+        # 3 clips, 2 gaps, no trailing gap
+        assert decoded_duration(Path(result["combined_audio_path"])) == pytest.approx(
+            3.0 + 2 * gap_ms / 1000, abs=0.15
+        )
+
+    def test_default_gap_is_400ms(self, tmp_path):
+        clips = tmp_path / "clips"
+        clips.mkdir()
+        for i in range(2):
+            make_tone(clips / f"{i:04d}.mp3", 1.0)
+
+        result = asyncio.run(combine_audio_files(clips, "episode", tmp_path / "audio"))
+
+        assert decoded_duration(Path(result["combined_audio_path"])) == pytest.approx(
+            2.4, abs=0.15
+        )
+
+    def test_single_clip_has_no_gap(self, tmp_path):
+        clips = tmp_path / "clips"
+        clips.mkdir()
+        make_tone(clips / "0000.mp3", 1.0)
+
+        result = asyncio.run(combine_audio_files(clips, "episode", tmp_path / "audio"))
+
+        assert decoded_duration(Path(result["combined_audio_path"])) == pytest.approx(
+            1.0, abs=0.15
+        )
+
+    def test_rejects_negative_gap(self, tmp_path):
+        clips = tmp_path / "clips"
+        clips.mkdir()
+        make_tone(clips / "0000.mp3", 0.5)
+
+        with pytest.raises(ValueError, match="gap_ms"):
+            asyncio.run(combine_audio_files(clips, "episode", tmp_path / "audio", gap_ms=-1))
 
     def test_raises_when_no_clips(self, tmp_path):
         clips = tmp_path / "clips"
@@ -276,6 +330,20 @@ class TestCombineAudioNode:
 
         with pytest.raises(ValueError):
             asyncio.run(combine_audio_node(state, {}))
+
+    def test_uses_gap_from_configurable(self, tmp_path):
+        (tmp_path / "clips").mkdir()
+        for i in range(2):
+            make_tone(tmp_path / "clips" / f"{i:04d}.mp3", 1.0)
+        state = {"output_dir": tmp_path, "episode_name": "episode"}
+
+        result = asyncio.run(
+            combine_audio_node(state, {"configurable": {"audio_gap_ms": 0}})
+        )
+
+        assert decoded_duration(result["final_output_file_path"]) == pytest.approx(
+            2.0, abs=0.15
+        )
 
     def test_returns_combined_file_path(self, tmp_path):
         (tmp_path / "clips").mkdir()
