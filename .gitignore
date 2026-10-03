@@ -23,3 +23,6 @@ CLAUDE.local.md
 claude-logs
 
 specs/
+# oss-maintainer local state
+.maintainer/profile.local.toml
+.maintainer/state/
