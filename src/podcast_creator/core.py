@@ -11,6 +11,8 @@ from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 
+from .defaults import DEFAULT_AUDIO_GAP_MS
+
 # Compile regex pattern once for better performance
 THINK_PATTERN = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 
@@ -257,9 +259,6 @@ transcript_prompt = get_transcript_prompter()
 
 # Legacy functions removed - use create_podcast from graph.py instead
 
-
-# Silence inserted between consecutive clips when combining audio
-DEFAULT_AUDIO_GAP_MS = 400
 
 AUDIO_STREAM_PATTERN = re.compile(r"Audio: [^,]+, (\d+) Hz, ([^,]+),")
 OUT_TIME_PATTERN = re.compile(r"^out_time_us=(\d+)$", re.MULTILINE)
