@@ -125,7 +125,9 @@ class TestCombineAudioFiles:
         for name, frequency in [("0002", 1500), ("0000", 300), ("0001", 800)]:
             make_tone(clips / f"{name}.mp3", 1.0, frequency=frequency)
 
-        result = asyncio.run(combine_audio_files(clips, "episode", tmp_path / "audio"))
+        result = asyncio.run(
+            combine_audio_files(clips, "episode", tmp_path / "audio", gap_ms=0)
+        )
 
         first, second, third = dominant_frequencies(
             Path(result["combined_audio_path"]), [0.3, 1.3, 2.3]
