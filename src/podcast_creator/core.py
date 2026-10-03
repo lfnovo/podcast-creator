@@ -1,12 +1,13 @@
+import asyncio
 import json
 import re
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
+from imageio_ffmpeg import get_ffmpeg_exe  # type: ignore[import-untyped]
 from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from loguru import logger
-from moviepy import AudioFileClip, concatenate_audioclips
 from pydantic import BaseModel, Field, field_validator
 
 # Compile regex pattern once for better performance
@@ -256,117 +257,150 @@ transcript_prompt = get_transcript_prompter()
 # Legacy functions removed - use create_podcast from graph.py instead
 
 
+AUDIO_STREAM_PATTERN = re.compile(r"Audio: [^,]+, (\d+) Hz, ([^,]+),")
+OUT_TIME_PATTERN = re.compile(r"^out_time_us=(\d+)$", re.MULTILINE)
+
+
+async def _run_ffmpeg(args: List[str]) -> Tuple[int, str, str]:
+    """Run ffmpeg with the given arguments and return (returncode, stdout, stderr)."""
+    process = await asyncio.create_subprocess_exec(
+        get_ffmpeg_exe(),
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate()
+    return (
+        process.returncode if process.returncode is not None else -1,
+        stdout.decode(errors="replace"),
+        stderr.decode(errors="replace"),
+    )
+
+
+async def _probe_audio_format(file_path: Path) -> Optional[Tuple[int, str]]:
+    """Return (sample_rate, channel_layout) of the first audio stream, if detectable."""
+    _, _, stderr = await _run_ffmpeg(["-hide_banner", "-i", str(file_path)])
+    match = AUDIO_STREAM_PATTERN.search(stderr)
+    if not match:
+        return None
+    layout = match.group(2).strip().split("(")[0].strip()
+    return int(match.group(1)), layout
+
+
+def _build_concat_filter(
+    num_inputs: int, audio_format: Optional[Tuple[int, str]]
+) -> str:
+    """Build a filter graph that resets each input's timestamps and concatenates them.
+
+    Resetting PTS per input makes the concat follow the decoded audio instead of the
+    (often inaccurate) duration declared in TTS-generated MP3 headers. When the format of
+    the first clip is known, every input is normalized to it so clips from different TTS
+    providers can be concatenated.
+    """
+    normalize = ""
+    if audio_format:
+        sample_rate, layout = audio_format
+        normalize = (
+            f"aresample={sample_rate},"
+            f"aformat=sample_rates={sample_rate}:channel_layouts={layout},"
+        )
+    chains = [f"[{i}:a]{normalize}asetpts=PTS-STARTPTS[a{i}]" for i in range(num_inputs)]
+    labels = "".join(f"[a{i}]" for i in range(num_inputs))
+    return ";".join(chains) + f";{labels}concat=n={num_inputs}:v=0:a=1[out]"
+
+
 async def combine_audio_files(
     audio_dir: Union[Path, str], final_filename: str, final_output_dir: Union[Path, str]
-):
+) -> Dict[str, Any]:
     """
-    Combines multiple audio files into a single MP3 file using moviepy.
-    Expects 'audio_segments_data' in inputs: a list of strings, where each string is a path to an audio file.
-    Also expects 'final_filename' in inputs: a string for the desired output filename (e.g., "podcast_episode.mp3").
-    Example input: {
-        "audio_segments_data": ["path/to/audio1.mp3", "path/to/audio2.mp3"],
-        "final_filename": "my_podcast.mp3"
-    }
-    Output: {"combined_audio_path": "output/audio/my_podcast.mp3"}
+    Combine every .mp3 clip in ``audio_dir`` (sorted by name) into a single MP3 file.
+
+    Uses a single ffmpeg process with the concat filter, so the number of processes does
+    not grow with the number of clips, and every clip is decoded to its real end even when
+    its MP3 header declares a wrong duration.
+
+    Args:
+        audio_dir: Directory containing the clips to combine.
+        final_filename: Name of the output file; ".mp3" is appended when missing.
+        final_output_dir: Directory where the combined file is written.
+
+    Returns:
+        Dict with "combined_audio_path", "original_segments_count" and
+        "total_duration_seconds".
+
+    Raises:
+        ValueError: If there are no clips to combine.
+        RuntimeError: If ffmpeg fails to combine the clips.
     """
     logger.info("[Core Function] combine_audio_files called.")
-    if isinstance(audio_dir, str):
-        audio_dir = Path(audio_dir)
-    if isinstance(final_output_dir, str):
-        final_output_dir = Path(final_output_dir)
-    list_of_audio_paths = sorted(audio_dir.glob("*.mp3"))
-    output_filename_from_input = final_filename
+    audio_dir = Path(audio_dir)
+    final_output_dir = Path(final_output_dir)
+    clip_paths = sorted(p for p in audio_dir.glob("*.mp3") if p.is_file())
 
-    logger.debug(list_of_audio_paths)
+    logger.debug(clip_paths)
 
-    if not list_of_audio_paths:
-        logger.warning(
-            "combine_audio_files: No audio segment data (list of paths) provided."
-        )
-        return {"combined_audio_path": "ERROR: No audio segment data"}
+    if not clip_paths:
+        raise ValueError(f"combine_audio_files: no .mp3 clips found in {audio_dir}")
 
-    if not isinstance(list_of_audio_paths, list):
-        logger.error(
-            f"combine_audio_files: 'audio_segments_data' is not a list. Received: {type(list_of_audio_paths)}"
-        )
-        return {
-            "combined_audio_path": "ERROR: audio_segments_data must be a list of file paths"
-        }
+    final_output_dir.mkdir(parents=True, exist_ok=True)
 
-    clips = []
-    valid_clips = []
-    for i, file_path in enumerate(list_of_audio_paths):
-        if not isinstance(file_path, Path):
-            logger.warning(
-                f"combine_audio_files: Item {i} in audio_segments_data is not a string path: {file_path}. Skipping."
-            )
-            continue
-
-        try:
-            if file_path.exists() and file_path.is_file():
-                clips.append(AudioFileClip(str(file_path)))
-                valid_clips.append(clips[-1])  # Keep track of valid clips for later
-            else:
-                logger.error(
-                    f"combine_audio_files: File not found or not a file: {file_path}"
-                )
-        except Exception as e:
-            logger.error(
-                f"combine_audio_files: Error loading audio clip {file_path}: {e}"
-            )
-
-    if not clips:
-        logger.error("combine_audio_files: No valid audio clips could be loaded.")
-        return {"combined_audio_path": "ERROR: No valid clips"}
-
-    try:
-        # Ensure all clips are closed after concatenation, even if it fails during the process.
-        # MoviePy's concatenate_audioclips might not close source clips if it errors out mid-way.
-        final_clip = concatenate_audioclips(clips)
-    except Exception as e:
-        logger.error(f"Error during concatenate_audioclips: {e}")
-        for clip_obj in clips:
-            try:
-                clip_obj.close()
-            except Exception as close_exc:
-                logger.debug(f"Error closing clip during error handling: {close_exc}")
-        return {"combined_audio_path": f"ERROR: Concatenation failed - {e}"}
-
-    output_dir = final_output_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Use the filename from input if provided, otherwise generate one.
-    if output_filename_from_input and isinstance(output_filename_from_input, str):
-        # Basic sanitization for filename (optional, depending on how robust it needs to be)
-        # For now, assume it's a simple filename like 'episode.mp3'
-        output_filename = Path(
-            output_filename_from_input
-        ).name  # Use only the filename part
+    if final_filename and isinstance(final_filename, str):
+        output_filename = Path(final_filename).name  # Use only the filename part
         if not output_filename.endswith(".mp3"):
-            output_filename += ".mp3"  # Ensure .mp3 extension
+            output_filename += ".mp3"
     else:
         output_filename = f"combined_{uuid.uuid4().hex}.mp3"
         logger.warning(
-            f"'final_filename' not provided or invalid in inputs. Using generated name: {output_filename}"
+            f"'final_filename' not provided or invalid. Using generated name: {output_filename}"
         )
 
-    output_path = output_dir / output_filename
+    output_path = final_output_dir / output_filename
+
+    audio_format = await _probe_audio_format(clip_paths[0])
+    if audio_format is None:
+        logger.warning(
+            f"combine_audio_files: could not detect audio format of {clip_paths[0]}; "
+            "concatenating without normalization"
+        )
+
+    args = ["-hide_banner", "-nostdin", "-y"]
+    for clip_path in clip_paths:
+        args += ["-i", str(clip_path)]
+    args += [
+        "-filter_complex",
+        _build_concat_filter(len(clip_paths), audio_format),
+        "-map",
+        "[out]",
+        "-c:a",
+        "libmp3lame",
+        "-b:a",
+        "128k",
+        "-progress",
+        "pipe:1",
+        "-nostats",
+        str(output_path),
+    ]
 
     try:
-        final_clip.write_audiofile(str(output_path), codec="mp3")
-        logger.info(f"Successfully combined audio to: {output_path.resolve()}")
-        return {
-            "combined_audio_path": str(output_path.resolve()),
-            "original_segments_count": len(valid_clips),
-            "total_duration_seconds": final_clip.duration,
-        }
-    except Exception as e:
-        logger.error(f"Error writing final audio file {output_path}: {e}")
-        return {"combined_audio_path": f"ERROR: Failed to write output audio - {e}"}
-    finally:
-        final_clip.close()  # Close the final concatenated clip
-        for clip_obj in clips:  # Ensure all source clips are closed
-            try:
-                clip_obj.close()
-            except Exception as close_exc:
-                logger.debug(f"Error closing source clip: {close_exc}")
+        returncode, stdout, stderr = await _run_ffmpeg(args)
+    except OSError as e:
+        output_path.unlink(missing_ok=True)
+        raise RuntimeError(f"combine_audio_files: failed to start ffmpeg: {e}") from e
+
+    if returncode != 0:
+        output_path.unlink(missing_ok=True)
+        error_tail = "\n".join(stderr.strip().splitlines()[-20:])
+        raise RuntimeError(
+            f"combine_audio_files: ffmpeg exited with code {returncode} while "
+            f"combining {len(clip_paths)} clips:\n{error_tail}"
+        )
+
+    out_times = OUT_TIME_PATTERN.findall(stdout)
+    total_duration = int(out_times[-1]) / 1_000_000 if out_times else None
+
+    logger.info(f"Successfully combined audio to: {output_path.resolve()}")
+    return {
+        "combined_audio_path": str(output_path.resolve()),
+        "original_segments_count": len(clip_paths),
+        "total_duration_seconds": total_duration,
+    }

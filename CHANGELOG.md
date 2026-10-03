@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Combining audio no longer truncates speech when TTS-generated MP3 clips declare an inaccurate duration in their headers; clips are now decoded to their real end (#41, #42)
+- Combining audio now uses a single ffmpeg process regardless of the number of clips, fixing `[Errno 11] Resource temporarily unavailable` on long episodes in hosts with process limits (#42)
+- `combine_audio_files` raises `ValueError` / `RuntimeError` on failure instead of returning an `"ERROR: ..."` string, so `create_podcast()` no longer reports a failed episode as a file path (#44)
+
+### Changed
+- Audio combining uses ffmpeg's concat filter (via the ffmpeg binary bundled with `imageio-ffmpeg`) instead of MoviePy; clips with different sample rates or channel layouts are normalized to the first clip's format
+- `moviepy` is no longer a direct dependency; `imageio-ffmpeg` is
+- **Breaking for callers of `combine_audio_files`:** code that checked `combined_audio_path` for an `"ERROR:"` prefix must catch exceptions instead
+
 ## [0.12.0] - 2026-02-18
 
 ### Added
