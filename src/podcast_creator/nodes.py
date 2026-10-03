@@ -8,7 +8,6 @@ from langchain_core.runnables import RunnableConfig
 from loguru import logger
 
 from .core import (
-    DEFAULT_AUDIO_GAP_MS,
     Dialogue,
     clean_thinking_content,
     combine_audio_files,
@@ -18,6 +17,7 @@ from .core import (
     get_transcript_prompter,
     outline_parser,
 )
+from .defaults import DEFAULT_AUDIO_GAP_MS
 from .retry import create_retry_decorator, get_retry_config
 from .state import PodcastState
 

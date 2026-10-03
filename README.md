@@ -614,7 +614,7 @@ This is particularly useful for:
 
 ### ⏸️ Pauses Between Turns
 
-When combining clips, a short silence is inserted between dialogue turns so speakers don't talk over each other. The default is `400` ms; set `audio_gap_ms` on the episode profile or pass it to `create_podcast()` (the argument wins), and use `0` to disable it:
+When combining clips, a short pause is inserted between dialogue turns for natural conversational pacing (TTS clips usually end without trailing silence). The default is `400` ms; set `audio_gap_ms` on the episode profile or pass it to `create_podcast()` (the argument wins), and use `0` to disable it:
 
 ```python
 result = await create_podcast(
