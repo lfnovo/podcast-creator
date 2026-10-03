@@ -21,8 +21,9 @@ from .retry import create_retry_decorator, get_retry_config
 from .state import PodcastState
 
 # Default output token limits; override via outline_config / transcript_config.
-# 8192 is the output cap of the bundled default transcript model (claude-3-5-sonnet);
-# Anthropic rejects higher values with HTTP 400.
+# 8192 fits the bundled default models (gpt-4o-mini for outlines, claude-3-5-sonnet for
+# transcripts, whose 8192 output cap Anthropic enforces with HTTP 400). Legacy models
+# with a 4096 output cap (e.g. Claude 3 family) need an explicit lower max_tokens.
 DEFAULT_OUTLINE_MAX_TOKENS = 8192
 DEFAULT_TRANSCRIPT_MAX_TOKENS = 8192
 
