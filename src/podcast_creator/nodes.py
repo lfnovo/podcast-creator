@@ -1,9 +1,10 @@
 import asyncio
 import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from esperanto import AIFactory
+from esperanto.providers.llm.structured_output import is_json_schema_unsupported_error
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
 
@@ -28,6 +29,85 @@ DEFAULT_OUTLINE_MAX_TOKENS = 8192
 DEFAULT_TRANSCRIPT_MAX_TOKENS = 8192
 
 
+def _is_json_schema_rejection(error: BaseException) -> bool:
+    """Whether a provider error means the endpoint can't do json_schema structured output.
+
+    Uses esperanto's shared detection, plus HTTP 400 errors that blame
+    ``response_format`` without naming ``json_schema`` (e.g. "This response_format
+    type is unavailable now").
+    """
+    if isinstance(error, Exception) and is_json_schema_unsupported_error(error):
+        return True
+    status_code = getattr(error, "status_code", None)
+    if status_code is None:
+        status_code = getattr(getattr(error, "response", None), "status_code", None)
+    return status_code == 400 and "response_format" in str(error).lower()
+
+
+class _SchemaFallbackModel:
+    """LangChain chat model that requests json_schema and falls back to generic JSON.
+
+    The fallback applies only when the caller did not set ``structured`` explicitly,
+    happens at most once, and is remembered through ``json_mode_models`` so later
+    calls in the same run go straight to generic JSON.
+    """
+
+    def __init__(
+        self,
+        provider: str,
+        model_name: str,
+        max_tokens: int,
+        schema: Any,
+        user_config: Dict[str, Any],
+        json_mode_models: List[str],
+    ):
+        self.provider = provider
+        self.model_name = model_name
+        self.key = f"{provider}/{model_name}"
+        self.uses_default_schema = "structured" not in user_config
+        self.json_mode = self.uses_default_schema and self.key in json_mode_models
+        self._config = {
+            "max_tokens": max_tokens,
+            "structured": {"type": "json"}
+            if self.json_mode
+            else {"type": "json_schema", "schema": schema},
+            **user_config,
+        }
+        self._model = self._create(self._config)
+
+    def _create(self, config: Dict[str, Any]) -> Any:
+        return AIFactory.create_language(
+            self.provider, self.model_name, config=config
+        ).to_langchain()
+
+    async def ainvoke(self, prompt_text: str) -> Any:
+        try:
+            return await self._model.ainvoke(prompt_text)
+        except Exception as error:
+            if (
+                not self.uses_default_schema
+                or self.json_mode
+                or not _is_json_schema_rejection(error)
+            ):
+                raise
+            logger.warning(
+                f"{self.key} rejected json_schema structured output; "
+                "falling back to generic JSON for the rest of this run. "
+                f"Original error: {error}"
+            )
+            self.json_mode = True
+            self._model = self._create({**self._config, "structured": {"type": "json"}})
+            return await self._model.ainvoke(prompt_text)
+
+
+def _json_mode_models(state: PodcastState, *models: _SchemaFallbackModel) -> List[str]:
+    keys = list(state.get("json_mode_models") or [])
+    for model in models:
+        if model.json_mode and model.uses_default_schema and model.key not in keys:
+            keys.append(model.key)
+    return keys
+
+
 async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> Dict:
     """Generate podcast outline from content and briefing"""
     logger.info("Starting outline generation")
@@ -37,20 +117,15 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
     outline_model_name = configurable.get("outline_model", "gpt-4o-mini")
     outline_config = configurable.get("outline_config") or {}
 
-    # Create outline model
-    merged_config = {
-        "max_tokens": DEFAULT_OUTLINE_MAX_TOKENS,
-        "structured": {
-            "type": "json_schema",
-            "schema": outline_parser.pydantic_object,
-        },
-        **outline_config,
-    }
-    outline_model = AIFactory.create_language(
+    # Create outline model (json_schema, with a generic JSON fallback)
+    outline_model = _SchemaFallbackModel(
         outline_provider,
         outline_model_name,
-        config=merged_config,
-    ).to_langchain()
+        DEFAULT_OUTLINE_MAX_TOKENS,
+        outline_parser.pydantic_object,
+        outline_config,
+        state.get("json_mode_models") or [],
+    )
 
     # Build retry decorator from configurable settings
     retry_cfg = get_retry_config(configurable)
@@ -81,7 +156,10 @@ async def generate_outline_node(state: PodcastState, config: RunnableConfig) -> 
 
     logger.info(f"Generated outline with {len(outline_result.segments)} segments")
 
-    return {"outline": outline_result}
+    return {
+        "outline": outline_result,
+        "json_mode_models": _json_mode_models(state, outline_model),
+    }
 
 
 async def generate_transcript_node(state: PodcastState, config: RunnableConfig) -> Dict:
@@ -102,20 +180,15 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
     speaker_names = speaker_profile.get_speaker_names()
     validated_transcript_parser = create_validated_transcript_parser(speaker_names)
 
-    # Create transcript model
-    merged_config = {
-        "max_tokens": DEFAULT_TRANSCRIPT_MAX_TOKENS,
-        "structured": {
-            "type": "json_schema",
-            "schema": validated_transcript_parser.pydantic_object,
-        },
-        **transcript_config,
-    }
-    transcript_model = AIFactory.create_language(
+    # Create transcript model (json_schema, with a generic JSON fallback)
+    transcript_model = _SchemaFallbackModel(
         transcript_provider,
         transcript_model_name,
-        config=merged_config,
-    ).to_langchain()
+        DEFAULT_TRANSCRIPT_MAX_TOKENS,
+        validated_transcript_parser.pydantic_object,
+        transcript_config,
+        state.get("json_mode_models") or [],
+    )
 
     # Build retry decorator from configurable settings
     retry_cfg = get_retry_config(configurable)
@@ -161,7 +234,10 @@ async def generate_transcript_node(state: PodcastState, config: RunnableConfig) 
 
     logger.info(f"Generated transcript with {len(transcript)} dialogue segments")
 
-    return {"transcript": transcript}
+    return {
+        "transcript": transcript,
+        "json_mode_models": _json_mode_models(state, transcript_model),
+    }
 
 
 def route_audio_generation(state: PodcastState, config: RunnableConfig) -> str:

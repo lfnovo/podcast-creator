@@ -158,6 +158,7 @@ async def create_podcast(
         output_dir=output_path,
         episode_name=episode_name,
         speaker_profile=speaker_profile,
+        json_mode_models=[],
     )
 
     # Create configuration

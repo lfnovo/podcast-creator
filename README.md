@@ -674,7 +674,7 @@ result = await create_podcast(
 
 ### 🧩 Structured Output
 
-Outline and transcript generation ask the model for JSON that matches the package's own schemas (`json_schema` structured output via Esperanto), so providers that support it return exactly the expected shape. A few providers or older models cannot honor a JSON schema (for example, Anthropic requires Claude 4.5 or newer); Esperanto then fails fast with a clear error. For those, fall back to generic JSON mode:
+Outline and transcript generation ask the model for JSON that matches the package's own schemas (`json_schema` structured output via Esperanto), so providers that support it return exactly the expected shape. When an endpoint rejects `json_schema` (some OpenAI-compatible servers only accept generic JSON), podcast-creator logs a warning and retries that call once in generic JSON mode, then keeps using JSON mode for that model for the rest of the run; the output is still validated against the same schema. To skip the first rejected request, or for models that fail in other ways (for example, Anthropic requires Claude 4.5 or newer for schemas), set generic JSON mode explicitly:
 
 ```python
 result = await create_podcast(
@@ -687,7 +687,7 @@ result = await create_podcast(
 )
 ```
 
-The same keys work inside an episode profile's `outline_config` / `transcript_config`.
+The same keys work inside an episode profile's `outline_config` / `transcript_config`. An explicit `structured` setting is always used as is, with no automatic fallback.
 
 ### 🌐 Proxy Configuration
 
