@@ -29,19 +29,35 @@ DEFAULT_OUTLINE_MAX_TOKENS = 8192
 DEFAULT_TRANSCRIPT_MAX_TOKENS = 8192
 
 
+_RESPONSE_FORMAT_REJECTION_SIGNALS = (
+    "unavailable",
+    "unsupported",
+    "not support",
+    "not implemented",
+    "must be 'text'",
+    'must be "text"',
+)
+
+
 def _is_json_schema_rejection(error: BaseException) -> bool:
     """Whether a provider error means the endpoint can't do json_schema structured output.
 
-    Uses esperanto's shared detection, plus HTTP 400 errors that blame
-    ``response_format`` without naming ``json_schema`` (e.g. "This response_format
-    type is unavailable now").
+    Uses esperanto's shared detection, plus HTTP 400 errors that say the
+    ``response_format`` is unavailable or unsupported without naming ``json_schema``
+    (e.g. "This response_format type is unavailable now"). A 400 that merely
+    mentions ``response_format`` (a proxy echoing the request body) does not count.
     """
     if isinstance(error, Exception) and is_json_schema_unsupported_error(error):
         return True
     status_code = getattr(error, "status_code", None)
     if status_code is None:
         status_code = getattr(getattr(error, "response", None), "status_code", None)
-    return status_code == 400 and "response_format" in str(error).lower()
+    if status_code != 400:
+        return False
+    message = str(error).lower()
+    return "response_format" in message and any(
+        signal in message for signal in _RESPONSE_FORMAT_REJECTION_SIGNALS
+    )
 
 
 class _SchemaFallbackModel:
@@ -92,12 +108,15 @@ class _SchemaFallbackModel:
                 raise
             logger.warning(
                 f"{self.key} rejected json_schema structured output; "
-                "falling back to generic JSON for the rest of this run. "
+                "retrying in generic JSON mode. "
                 f"Original error: {error}"
             )
+            json_model = self._create({**self._config, "structured": {"type": "json"}})
+            result = await json_model.ainvoke(prompt_text)
+            # Commit the downgrade only once generic JSON actually worked
+            self._model = json_model
             self.json_mode = True
-            self._model = self._create({**self._config, "structured": {"type": "json"}})
-            return await self._model.ainvoke(prompt_text)
+            return result
 
 
 def _json_mode_models(state: PodcastState, *models: _SchemaFallbackModel) -> List[str]:

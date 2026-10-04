@@ -93,6 +93,13 @@ class TestRejectionDetection:
     def test_unrelated_400_is_not_a_rejection(self):
         assert not _is_json_schema_rejection(_bad_request("Error code: 400 - max_tokens too large"))
 
+    def test_400_echoing_response_format_is_not_a_rejection(self):
+        message = (
+            'Error code: 400 - invalid request: messages[0].content is required; '
+            'request={"response_format": {"type": "json_schema"}}'
+        )
+        assert not _is_json_schema_rejection(_bad_request(message))
+
     def test_auth_error_mentioning_response_format_is_not_a_rejection(self):
         error = _error(openai.AuthenticationError, 401, "Error code: 401 - response_format: invalid api key")
         assert not _is_json_schema_rejection(error)
@@ -119,6 +126,18 @@ class TestOutlineFallback:
         assert result["json_mode_models"] == ["deepseek/deepseek-chat"]
         assert len([w for w in warnings if "rejected json_schema" in w]) == 1
         mock_parser.invoke.assert_called_once_with('{"segments": []}')
+
+    def test_failed_fallback_is_not_recorded(self, mock_factory, mock_parser, mock_prompter):
+        mock_prompter.return_value.render.return_value = "prompt"
+        mock_factory.create_language.side_effect = [
+            _language_model(_bad_request(SCHEMA_UNSUPPORTED)),
+            _language_model(_error(openai.AuthenticationError, 401, "Error code: 401 - invalid api key")),
+        ]
+
+        with pytest.raises(openai.AuthenticationError):
+            asyncio.run(generate_outline_node(_outline_state(), {"configurable": {}}))
+
+        assert _structured_types(mock_factory) == ["json_schema", "json"]
 
     def test_supported_endpoint_makes_no_extra_request(self, mock_factory, mock_parser, mock_prompter, warnings):
         mock_prompter.return_value.render.return_value = "prompt"
