@@ -8,4 +8,6 @@ three times graduates to the process document or to a test.
   `-c copy` truncates TTS clips with wrong MP3 header durations (#41).
 - Tags pushed with `GITHUB_TOKEN` do not trigger other workflows. `create-tag.yml` therefore
   calls `publish.yml` directly (`workflow_call`) after creating the tag; `make tag` (pushed
-  with the maintainer's credentials) triggers `publish.yml` through the tag push.
+  with the maintainer's credentials) triggers `publish.yml` through the tag push. If the
+  publish job fails, use "Re-run failed jobs": it retries only `publish`, without recreating
+  the tag (re-running the whole workflow stops at the existing-tag check).
