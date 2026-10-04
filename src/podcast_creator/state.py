@@ -25,3 +25,6 @@ class PodcastState(TypedDict):
     output_dir: Path
     episode_name: str
     speaker_profile: Optional[SpeakerProfile]
+
+    # "provider/model" keys that rejected json_schema and use generic JSON for the run
+    json_mode_models: List[str]
