@@ -4,6 +4,17 @@ on:
   push:
     tags:
       - 'v*'
+  # Called by create-tag.yml: tags pushed with GITHUB_TOKEN do not trigger
+  # other workflows, so the tag-push trigger above never fires from there.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Tag to build and publish (e.g. v1.2.3)'
+        required: true
+        type: string
+    secrets:
+      PYPI_TOKEN:
+        required: true
 
 jobs:
   publish:
@@ -11,6 +22,8 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.ref || github.ref }}
     
     - name: Set up Python
       uses: actions/setup-python@v5

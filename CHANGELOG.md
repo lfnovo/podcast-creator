@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-04
+
 ### Added
 - Configurable silence between dialogue turns in the combined audio: `audio_gap_ms` on episode profiles and `create_podcast()` (default 400 ms, `0` disables) (#37)
 
