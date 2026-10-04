@@ -3,9 +3,9 @@
 Fragile areas and lessons learned. The release retro appends here; a gotcha that holds up
 three times graduates to the process document or to a test.
 
-- `combine_audio_files` (`core.py`) uses moviepy, which opens one ffmpeg subprocess per clip
-  and trusts MP3 header durations. Long episodes can hit process limits (#42) and clips with
-  inaccurate duration metadata get truncated (#41).
-- `.github/workflows/create-tag.yml` pushes the tag with `GITHUB_TOKEN`; tags pushed that way
-  do not trigger other workflows, so `publish.yml` likely does not run from it. `make tag`
-  (pushed with the maintainer's credentials) is the path that publishes. Unverified.
+- `combine_audio_files` (`core.py`) must stay a single ffmpeg filter-concat with per-input
+  `asetpts=PTS-STARTPTS`: MoviePy opened one process per clip (#42) and the concat demuxer with
+  `-c copy` truncates TTS clips with wrong MP3 header durations (#41).
+- Tags pushed with `GITHUB_TOKEN` do not trigger other workflows. `create-tag.yml` therefore
+  calls `publish.yml` directly (`workflow_call`) after creating the tag; `make tag` (pushed
+  with the maintainer's credentials) triggers `publish.yml` through the tag push.

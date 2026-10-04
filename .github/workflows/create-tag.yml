@@ -14,6 +14,8 @@ jobs:
     if: github.event.inputs.confirm == 'yes'
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
 
     steps:
     - uses: actions/checkout@v4
@@ -53,4 +55,12 @@ jobs:
       if: steps.check.outputs.exists == 'false'
       run: |
         echo "✨ Tag v${{ steps.version.outputs.version }} has been created!"
-        echo "🚀 This will trigger the publish workflow automatically."
+        echo "🚀 Publishing to PyPI in the next job."
+
+  publish:
+    needs: create-tag
+    uses: ./.github/workflows/publish.yml
+    with:
+      ref: ${{ needs.create-tag.outputs.tag }}
+    secrets:
+      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
