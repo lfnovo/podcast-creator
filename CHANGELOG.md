@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-10-04
+
+### Fixed
+- Outline and transcript generation fall back to generic JSON mode when an endpoint rejects `json_schema` structured output (e.g. OpenAI-compatible servers that only accept `json_object`), instead of failing every podcast since 0.13.0. The fallback retries the rejected call once, logs a warning, and keeps JSON mode for that model for the rest of the run; other 4xx errors are still raised, and an explicit `structured` in `outline_config` / `transcript_config` is never overridden (#51)
+
 ## [0.13.0] - 2026-10-04
 
 ### Added
